@@ -10,6 +10,27 @@ pub fn index(inner: Markup) -> Markup {
     }
 }
 
+pub fn not_found(details: Markup) -> Markup {
+    index(html! {
+        h1 { "A 404 has been spotted" }
+        (details)
+    })
+}
+
+pub fn bad_request(details: Markup) -> Markup {
+    index(html! {
+        h1 { "You tried a nughty thing" }
+        (details)
+    })
+}
+
+pub fn internal_error(details: Markup) -> Markup {
+    index(html! {
+        h1 { "I'm terribly sorry, but something happened" }
+        (details)
+    })
+}
+
 pub fn test_screen() -> Markup {
     screen(html! {
         div ."view view--full" {

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use axum::{
     body::Body,
-    extract::{Path, State},
-    http::{Response, StatusCode},
+    extract::{FromRef, FromRequestParts, Path, State},
+    http::{request::Parts, Response, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
@@ -17,19 +17,86 @@ mod pages;
 
 #[derive(Debug)]
 enum Error {
-    InvalidId,
-    RenderError,
+    Render,
 }
 
 impl From<blender::Error> for Error {
     fn from(_: blender::Error) -> Self {
-        Error::RenderError
+        Error::Render
     }
 }
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response<Body> {
-        (StatusCode::INTERNAL_SERVER_ERROR, "Rendering has failed").into_response()
+        match self {
+            Error::Render => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                pages::internal_error(html! { p { "The rendering has failed" } }),
+            ),
+        }
+        .into_response()
+    }
+}
+
+#[derive(Debug)]
+enum DeviceError {
+    MissingId,
+    InvalidId,
+    NotFound,
+}
+
+impl From<url::ParseError> for DeviceError {
+    fn from(_: url::ParseError) -> Self {
+        Self::InvalidId
+    }
+}
+
+impl IntoResponse for DeviceError {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            DeviceError::InvalidId => (
+                StatusCode::BAD_REQUEST,
+                pages::bad_request(html! { p { "The device id was invalid"} }),
+            ),
+            DeviceError::NotFound => (
+                StatusCode::NOT_FOUND,
+                pages::not_found(html! { p { "The device is unknown" } }),
+            ),
+            DeviceError::MissingId => (
+                StatusCode::BAD_REQUEST,
+                pages::bad_request(html! { p { "Forgot the device id, eh?" } }),
+            ),
+        }
+        .into_response()
+    }
+}
+
+struct DeviceInfo {
+    id: String,
+    content_url: Url,
+    image_url: Url,
+}
+
+impl<S> FromRequestParts<S> for DeviceInfo
+where
+    Arc<ServerState>: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = DeviceError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let Path(id) = Path::<String>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| DeviceError::MissingId)?;
+        let state = Arc::from_ref(state);
+        if id != "test" {
+            return Err(DeviceError::NotFound);
+        }
+        Ok(DeviceInfo {
+            content_url: state.content_url_base.join(&id)?,
+            image_url: state.render_url_base.join(&id)?,
+            id,
+        })
     }
 }
 
@@ -51,29 +118,29 @@ async fn render_screen(
 
 async fn render_screen_img(
     State(state): State<Arc<ServerState>>,
-    Path(id): Path<String>,
+    device: DeviceInfo,
 ) -> axum::response::Result<Box<[u8]>> {
-    render_screen(
-        &state.renderer,
-        state.render_url.join(&id).map_err(|_| Error::InvalidId)?,
-    )
-    .await
+    render_screen(&state.renderer, device.content_url).await
 }
 
-async fn screen_content(Path(id): Path<String>) -> Markup {
-    pages::test_screen()
+async fn screen_content(device: DeviceInfo) -> axum::response::Result<Markup, Error> {
+    if device.id == "test" {
+        return Ok(pages::test_screen());
+    }
+    unimplemented!("this is not implemented yet");
 }
 
-async fn preview(Path(id): Path<String>) -> Markup {
+async fn preview(device: DeviceInfo) -> Markup {
     pages::index(html! {
         h1 { "Preview TRMNL screen" }
-        img src={"/screen/" (id)};
+        img src=(device.image_url.path());
     })
 }
 
 struct ServerState {
     renderer: blender::Instance,
-    render_url: Url,
+    render_url_base: Url,
+    content_url_base: Url,
 }
 
 #[tokio::main]
@@ -81,11 +148,12 @@ async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     colog::init();
 
-    let mut url = Url::parse("http://localhost/content/")?;
+    let mut url = Url::parse("http://localhost/")?;
     url.set_port(Some(8223)).unwrap();
     let state = Arc::new(ServerState {
         renderer: blender::Instance::new().await.unwrap(),
-        render_url: url,
+        render_url_base: url.join("screen/").unwrap(),
+        content_url_base: url.join("content/").unwrap(),
     });
     let app = Router::new()
         .route(
