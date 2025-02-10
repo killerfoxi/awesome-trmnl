@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use axum::{
     body::Body,
-    extract::{FromRef, FromRequestParts, Path, State},
-    http::{request::Parts, Response, StatusCode},
+    extract::State,
+    http::{Response, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
@@ -11,9 +11,14 @@ use axum::{
 use log::{error, info};
 use maud::{html, Markup};
 use tokio::net::TcpListener;
+use tower_http::services::fs;
 use url::Url;
 
+mod device;
 mod pages;
+mod plugins;
+mod resource;
+mod storage;
 
 #[derive(Debug)]
 enum Error {
@@ -38,68 +43,6 @@ impl IntoResponse for Error {
     }
 }
 
-#[derive(Debug)]
-enum DeviceError {
-    MissingId,
-    InvalidId,
-    NotFound,
-}
-
-impl From<url::ParseError> for DeviceError {
-    fn from(_: url::ParseError) -> Self {
-        Self::InvalidId
-    }
-}
-
-impl IntoResponse for DeviceError {
-    fn into_response(self) -> axum::response::Response {
-        match self {
-            DeviceError::InvalidId => (
-                StatusCode::BAD_REQUEST,
-                pages::bad_request(html! { p { "The device id was invalid"} }),
-            ),
-            DeviceError::NotFound => (
-                StatusCode::NOT_FOUND,
-                pages::not_found(html! { p { "The device is unknown" } }),
-            ),
-            DeviceError::MissingId => (
-                StatusCode::BAD_REQUEST,
-                pages::bad_request(html! { p { "Forgot the device id, eh?" } }),
-            ),
-        }
-        .into_response()
-    }
-}
-
-struct DeviceInfo {
-    id: String,
-    content_url: Url,
-    image_url: Url,
-}
-
-impl<S> FromRequestParts<S> for DeviceInfo
-where
-    Arc<ServerState>: FromRef<S>,
-    S: Send + Sync,
-{
-    type Rejection = DeviceError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let Path(id) = Path::<String>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| DeviceError::MissingId)?;
-        let state = Arc::from_ref(state);
-        if id != "test" {
-            return Err(DeviceError::NotFound);
-        }
-        Ok(DeviceInfo {
-            content_url: state.content_url_base.join(&id)?,
-            image_url: state.render_url_base.join(&id)?,
-            id,
-        })
-    }
-}
-
 async fn render_screen(
     renderer: &blender::Instance,
     url: Url,
@@ -118,29 +61,31 @@ async fn render_screen(
 
 async fn render_screen_img(
     State(state): State<Arc<ServerState>>,
-    device: DeviceInfo,
+    device: device::Info,
 ) -> axum::response::Result<Box<[u8]>> {
-    render_screen(&state.renderer, device.content_url).await
+    render_screen(&state.renderer, device.content_url.fully_qualified_url()).await
 }
 
-async fn screen_content(device: DeviceInfo) -> axum::response::Result<Markup, Error> {
+async fn screen_content(device: device::Info) -> axum::response::Result<Markup, Error> {
     if device.id == "test" {
         return Ok(pages::test_screen());
+    }
+    if device.id == "ticktick" {
+        return Ok(pages::screen(plugins::ticktick::content()));
     }
     unimplemented!("this is not implemented yet");
 }
 
-async fn preview(device: DeviceInfo) -> Markup {
+async fn preview(device: device::Info) -> Markup {
     pages::index(html! {
         h1 { "Preview TRMNL screen" }
-        img src=(device.image_url.path());
+        img src=(device.image_url.as_href());
     })
 }
 
-struct ServerState {
-    renderer: blender::Instance,
-    render_url_base: Url,
-    content_url_base: Url,
+pub struct ServerState {
+    pub renderer: blender::Instance,
+    pub storage: storage::Storage,
 }
 
 #[tokio::main]
@@ -148,12 +93,9 @@ async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     colog::init();
 
-    let mut url = Url::parse("http://localhost/")?;
-    url.set_port(Some(8223)).unwrap();
     let state = Arc::new(ServerState {
         renderer: blender::Instance::new().await.unwrap(),
-        render_url_base: url.join("screen/").unwrap(),
-        content_url_base: url.join("content/").unwrap(),
+        storage: storage::Storage,
     });
     let app = Router::new()
         .route(
@@ -167,6 +109,7 @@ async fn main() -> color_eyre::Result<()> {
         .route("/content/{id}", get(screen_content))
         .route("/screen/{id}", get(render_screen_img))
         .route("/preview/{id}", get(preview))
+        .nest_service("/assets", fs::ServeDir::new("assets"))
         .with_state(state);
     let listener = TcpListener::bind("0.0.0.0:8223").await?;
     info!(

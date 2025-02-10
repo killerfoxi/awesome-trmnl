@@ -3,7 +3,10 @@ use maud::{html, Markup, DOCTYPE};
 pub fn index(inner: Markup) -> Markup {
     html! {
         (DOCTYPE)
-        title { "Awesome TRMNL" }
+        head {
+            title { "Awesome TRMNL" }
+            link rel="stylesheet" href="/assets/style.css";
+        }
         body {
             (inner)
         }
@@ -63,6 +66,7 @@ pub fn screen(inner: Markup) -> Markup {
         (DOCTYPE)
         title { "Awesome TRMNL" }
         link rel="stylesheet" href="https://usetrmnl.com/css/latest/plugins.css";
+        link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.css";
         body .environment.trmnl {
             div .screen {
                 (inner)
