@@ -64,9 +64,11 @@ pub fn test_screen() -> Markup {
 pub fn screen(inner: Markup) -> Markup {
     html! {
         (DOCTYPE)
-        title { "Awesome TRMNL" }
-        link rel="stylesheet" href="https://usetrmnl.com/css/latest/plugins.css";
-        link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.css";
+        head {
+            title { "Awesome TRMNL" }
+            link rel="stylesheet" href="https://usetrmnl.com/css/latest/plugins.css";
+            link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.css";
+        }
         body .environment.trmnl {
             div .screen {
                 (inner)
