@@ -23,11 +23,18 @@ mod storage;
 #[derive(Debug)]
 enum Error {
     Render,
+    Generation,
 }
 
 impl From<blender::Error> for Error {
     fn from(_: blender::Error) -> Self {
         Error::Render
+    }
+}
+
+impl From<device::GenerationError> for Error {
+    fn from(_: device::GenerationError) -> Self {
+        Error::Generation
     }
 }
 
@@ -37,6 +44,10 @@ impl IntoResponse for Error {
             Error::Render => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 pages::internal_error(html! { p { "The rendering has failed" } }),
+            ),
+            Error::Generation => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                pages::internal_error(html! { "Could not generate content" }),
             ),
         }
         .into_response()
@@ -63,17 +74,17 @@ async fn render_screen_img(
     State(state): State<Arc<ServerState>>,
     device: device::Info,
 ) -> axum::response::Result<Box<[u8]>> {
-    render_screen(&state.renderer, device.content_url.fully_qualified_url()).await
+    render_screen(&state.renderer, device.content_url).await
 }
 
-async fn screen_content(device: device::Info) -> axum::response::Result<Markup, Error> {
-    if device.id == "test" {
-        return Ok(pages::test_screen());
-    }
-    if device.id == "ticktick" {
-        return Ok(pages::screen(plugins::ticktick::content()));
-    }
-    unimplemented!("this is not implemented yet");
+#[axum::debug_handler]
+async fn screen_content(
+    device: device::Info,
+    State(state): State<Arc<ServerState>>,
+) -> axum::response::Result<Markup, Error> {
+    Ok(pages::screen(
+        state.storage.content_generator(&device).await?,
+    ))
 }
 
 async fn preview(device: device::Info) -> Markup {
@@ -95,7 +106,7 @@ async fn main() -> color_eyre::Result<()> {
 
     let state = Arc::new(ServerState {
         renderer: blender::Instance::new().await.unwrap(),
-        storage: storage::Storage,
+        storage: storage::Storage::default(),
     });
     let app = Router::new()
         .route(

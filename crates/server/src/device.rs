@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use maud::html;
+use url::Url;
 
 use crate::{pages, resource::Resource, ServerState};
 
@@ -42,9 +43,11 @@ impl IntoResponse for Error {
     }
 }
 
+pub struct GenerationError;
+
 pub struct Info {
     pub id: String,
-    pub content_url: Resource,
+    pub content_url: Url,
     pub image_url: Resource,
 }
 
@@ -66,7 +69,7 @@ where
             .device_by_id(&id)
             .map(|d| Info {
                 id: d.id,
-                content_url: d.content_resource,
+                content_url: d.content_resource.fully_qualified_url(),
                 image_url: Resource::rendering(&id),
             })
             .ok_or(Error::NotFound)

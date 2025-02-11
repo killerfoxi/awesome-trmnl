@@ -35,7 +35,7 @@ pub fn internal_error(details: Markup) -> Markup {
 }
 
 pub fn test_screen() -> Markup {
-    screen(html! {
+    html! {
         div ."view view--full" {
             div .layout {
                 div .columns {
@@ -58,7 +58,23 @@ pub fn test_screen() -> Markup {
                 span .instance { "Instance Title" }
             }
         }
-    })
+    }
+}
+
+pub fn empty_screen() -> Markup {
+    html! {
+        div ."view view--full" {
+            div .layout {
+                div .columns {
+                    div .column {
+                        div .markdown {
+                            span .title { "Nothing to render" }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn screen(inner: Markup) -> Markup {
