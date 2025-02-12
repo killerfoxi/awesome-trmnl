@@ -1,23 +1,25 @@
-use std::{fmt::Display, ops::Deref};
+use std::{fmt::Display, ops::Deref, time::Duration};
 
 use chrono::{DateTime, Utc};
-use futures::TryFutureExt;
 use log::{debug, error};
 use maud::{html, Markup};
-use reqwest::{header, redirect};
+use reqwest::{header, redirect, StatusCode};
 use url::Url;
 
 #[derive(Debug)]
 pub enum ClientError {
+    MissingToken,
     InvalidToken,
 }
 
 #[derive(Debug)]
 pub enum FetchError {
-    InvalidPath,
     Timeout,
     Connection,
     InvalidRequest,
+    PermissionDenied,
+    NotFound,
+    Unauthenticated,
     Other,
 }
 
@@ -29,6 +31,13 @@ impl From<reqwest::Error> for FetchError {
             Self::Timeout
         } else if err.is_request() {
             Self::InvalidRequest
+        } else if err.is_status() {
+            match err.status().unwrap() {
+                StatusCode::NOT_FOUND => Self::NotFound,
+                StatusCode::FORBIDDEN => Self::PermissionDenied,
+                StatusCode::UNAUTHORIZED => Self::Unauthenticated,
+                _ => Self::Other,
+            }
         } else {
             Self::Other
         }
@@ -36,7 +45,15 @@ impl From<reqwest::Error> for FetchError {
 }
 
 #[derive(Debug)]
-struct Endpoint(Url);
+pub struct Endpoint(Url);
+
+impl Endpoint {
+    pub fn for_project_data(&self, project: &Project) -> Url {
+        self.0
+            .join(&format!("project/{}/data", project.id))
+            .unwrap()
+    }
+}
 
 impl Default for Endpoint {
     fn default() -> Self {
@@ -74,10 +91,14 @@ impl Client {
         })
     }
 
+    pub fn endpoint(&self) -> &Endpoint {
+        &self.endpoint
+    }
+
     pub async fn fetch_tasks(&self, project: Project) -> Result<Box<[Task]>, FetchError> {
         debug!("Fetching data for {}", project.id);
         let pd: ProjectData = self
-            .fetch(&format!("/project/{}/data", project.id))
+            .fetch(self.endpoint.for_project_data(&project))
             .await
             .inspect_err(|e| error!("While fetching: {e:?}"))?
             .json()
@@ -91,13 +112,27 @@ impl Client {
         Ok(content(&self.fetch_tasks(project).await?, now))
     }
 
-    async fn fetch(&self, path: &str) -> Result<reqwest::Response, FetchError> {
-        let url = self
-            .endpoint
-            .join(path.strip_prefix("/").unwrap_or(path))
-            .map_err(|_| FetchError::InvalidPath)?;
+    async fn fetch(&self, url: Url) -> Result<reqwest::Response, FetchError> {
         debug!("Fetching GET from: {url}");
-        Ok(self.inner.get(url).send().await?)
+        Ok(self
+            .inner
+            .get(url)
+            .timeout(Duration::from_secs(30))
+            .send()
+            .await?
+            .error_for_status()?)
+    }
+}
+
+impl TryFrom<&toml::Table> for Client {
+    type Error = ClientError;
+
+    fn try_from(value: &toml::Table) -> Result<Self, Self::Error> {
+        let token = value
+            .get("auth")
+            .and_then(|a| a.get("token").and_then(|t| t.as_str()))
+            .ok_or(ClientError::MissingToken)?;
+        Client::new(token)
     }
 }
 
@@ -106,6 +141,7 @@ struct ProjectData {
     tasks: Vec<Task>,
 }
 
+#[derive(Clone)]
 pub struct Project {
     id: String,
 }
@@ -113,6 +149,12 @@ pub struct Project {
 impl From<String> for Project {
     fn from(id: String) -> Self {
         Self { id }
+    }
+}
+
+impl Project {
+    pub fn from_toml(value: &toml::Value) -> Option<Self> {
+        value.as_str().map(|v| Self { id: v.into() })
     }
 }
 
@@ -137,10 +179,20 @@ impl From<i32> for Priority {
     }
 }
 
+impl Priority {
+    pub fn icon(&self) -> &str {
+        match self {
+            Self::Medium => "iconoir-priority-medium",
+            Self::High => "iconoir-priority-high",
+            Self::Low => "iconoir-priority-down",
+            Self::None => "",
+        }
+    }
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
-    id: String,
     title: String,
     #[serde(default)]
     content: String,
@@ -195,11 +247,12 @@ fn entry(task: &Task, now: DateTime<Utc>) -> Markup {
                     span ."description" { (task.content) }
                 }
                 div ."flex flex--row gap" {
+                    span .{(task.priority.icon())} {}
                     @if let Some(start) = start {
-                        (text_with_icon_and_modifier("timer", &start, "label--small label--inverted"))
+                        (text_with_icon_and_modifier("clock", &start, "label--small label--inverted"))
                     }
                     @if let Some(due) = due {
-                        (text_with_icon_and_modifier("timer-off", &due, "label--small label--inverted"))
+                        (text_with_icon_and_modifier("clock-solid", &due, "label--small label--inverted"))
                     }
                 }
             }

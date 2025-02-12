@@ -30,3 +30,6 @@ chrono = { version = "0.4.39", default-features = false, features = [
 tower-http = { version = "0.6.2", features = ["fs"], default-features = false }
 serde = { version = "1.0.217", features = ["derive"] }
 futures = { version = "0.3.31", default-features = false }
+http = "1.2.0"
+toml = "0.8.20"
+eyre = "0.6.12"
