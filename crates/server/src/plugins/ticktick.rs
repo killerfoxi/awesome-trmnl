@@ -259,7 +259,7 @@ pub fn content(tasks: &[Task], now: DateTime<Utc>) -> Markup {
     html! {
         div ."view view--full" {
             div ."layout layout--col layout--stretch-x" {
-                (status_bar())
+                (status_bar(tasks.len()))
                 div ."border--h-1" {}
                 div .stretch {
                     (todos(tasks, now))
@@ -303,10 +303,10 @@ fn entry(task: &Task, now: DateTime<Utc>) -> Markup {
                 div ."flex flex--row gap" {
                     span .{(task.priority.icon())} {}
                     @if let Some(start) = start {
-                        (text_with_icon_and_modifier("clock", &start, "label--small label--inverted"))
+                        (text_with_icon_and_modifier("schedule", &start, "label--small label--inverted"))
                     }
                     @if let Some(due) = due {
-                        (text_with_icon_and_modifier("clock-solid", &due, "label--small label--inverted"))
+                        (text_with_icon_and_modifier("alarm", &due, "label--small label--inverted"))
                     }
                 }
             }
@@ -321,21 +321,20 @@ fn text_with_icon(icon: &str, text: &str) -> Markup {
 fn text_with_icon_and_modifier(icon: &str, text: &str, modifier: &str) -> Markup {
     html! {
         div ."flex flex--row gap--small" {
-            span .{"iconoir-" (icon)} {}
+            span ."material-symbols-outlined" { (icon) }
             span .label .{(modifier)} { (text) }
         }
     }
 }
 
-fn status_bar() -> Markup {
+fn status_bar(num_tasks: usize) -> Markup {
     let now = chrono::offset::Local::now();
     html! {
         div ."flex flex--left flex--row" {
-            (text_with_icon("refresh", &format!("{}", now.format("%Y-%m-%d %H:%M:%S"))))
+            (text_with_icon("update", &format!("{}", now.format("%Y-%m-%d %H:%M:%S"))))
             div ."stretch-y" {
                 div ."flex flex--row flex--right gap--medium" {
-                    (text_with_icon("temperature-high", "23°C"))
-                    (text_with_icon("droplet", "65%"))
+                    (text_with_icon("numbers", &num_tasks.to_string()))
                 }
             }
         }
