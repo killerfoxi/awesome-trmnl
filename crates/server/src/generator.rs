@@ -10,6 +10,7 @@ pub enum FetchErrorKind {
     Request(StatusCode),
     Network,
     Timeout,
+    InvalidData,
 }
 
 #[derive(Debug)]
@@ -45,6 +46,13 @@ impl IntoResponse for Error {
                     pages::error(
                         "Retrieval took too long",
                         "The request to retrieve the content took too long.",
+                    ),
+                ),
+                FetchErrorKind::InvalidData => (
+                    StatusCode::BAD_GATEWAY,
+                    pages::error(
+                        "Gateway response invalid",
+                        "The response from upstream returned invalid data",
                     ),
                 ),
             },

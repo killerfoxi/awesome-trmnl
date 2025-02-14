@@ -6,6 +6,8 @@ use maud::{html, Markup};
 use reqwest::{header, redirect, StatusCode};
 use url::Url;
 
+use crate::generator;
+
 #[derive(Debug)]
 pub enum ClientError {
     MissingToken,
@@ -13,17 +15,18 @@ pub enum ClientError {
 }
 
 #[derive(Debug)]
-pub enum FetchError {
+pub enum FetchErrorKind {
     Timeout,
     Connection,
     InvalidRequest,
     PermissionDenied,
     NotFound,
     Unauthenticated,
+    Json,
     Other,
 }
 
-impl From<reqwest::Error> for FetchError {
+impl From<reqwest::Error> for FetchErrorKind {
     fn from(err: reqwest::Error) -> Self {
         if err.is_connect() {
             Self::Connection
@@ -40,6 +43,61 @@ impl From<reqwest::Error> for FetchError {
             }
         } else {
             Self::Other
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct FetchError {
+    pub kind: FetchErrorKind,
+    pub target: Option<Url>,
+}
+
+impl From<reqwest::Error> for FetchError {
+    fn from(value: reqwest::Error) -> Self {
+        Self {
+            target: value.url().cloned(),
+            kind: value.into(),
+        }
+    }
+}
+
+impl From<FetchError> for generator::Error {
+    fn from(err: FetchError) -> Self {
+        let target = err
+            .target
+            .as_ref()
+            .map_or(String::default(), ToString::to_string);
+        match err.kind {
+            FetchErrorKind::Timeout => generator::Error::Fetch {
+                kind: generator::FetchErrorKind::Timeout,
+                target,
+            },
+            FetchErrorKind::Connection => generator::Error::Fetch {
+                kind: generator::FetchErrorKind::Network,
+                target,
+            },
+            FetchErrorKind::InvalidRequest => generator::Error::Fetch {
+                kind: generator::FetchErrorKind::Request(StatusCode::BAD_REQUEST),
+                target,
+            },
+            FetchErrorKind::PermissionDenied => generator::Error::Fetch {
+                kind: generator::FetchErrorKind::Request(StatusCode::FORBIDDEN),
+                target,
+            },
+            FetchErrorKind::NotFound => generator::Error::Fetch {
+                kind: generator::FetchErrorKind::Request(StatusCode::NOT_FOUND),
+                target,
+            },
+            FetchErrorKind::Unauthenticated => generator::Error::Fetch {
+                kind: generator::FetchErrorKind::Request(StatusCode::UNAUTHORIZED),
+                target,
+            },
+            FetchErrorKind::Json => generator::Error::Fetch {
+                kind: generator::FetchErrorKind::InvalidData,
+                target,
+            },
+            FetchErrorKind::Other => generator::Error::Unknown,
         }
     }
 }
@@ -89,10 +147,6 @@ impl Client {
                 .unwrap(),
             endpoint: Endpoint::default(),
         })
-    }
-
-    pub fn endpoint(&self) -> &Endpoint {
-        &self.endpoint
     }
 
     pub async fn fetch_tasks(&self, project: Project) -> Result<Box<[Task]>, FetchError> {
