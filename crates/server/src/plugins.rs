@@ -1,8 +1,30 @@
+use std::{collections::HashMap, pin::Pin, sync::Arc};
+
 use futures::future::BoxFuture;
 
 use crate::{generator, pages, storage};
 
+pub mod mashup;
 pub mod ticktick;
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginConfig {
+    Ticktick {
+        project_id: String,
+        auth: ticktick::Auth,
+    },
+    TestScreen,
+}
+
+impl PluginConfig {
+    pub fn to_key(&self) -> String {
+        match self {
+            PluginConfig::Ticktick { .. } => String::from("ticktick"),
+            PluginConfig::TestScreen => String::from("test"),
+        }
+    }
+}
 
 pub enum Plugin {
     Ticktick {
@@ -12,32 +34,30 @@ pub enum Plugin {
     TestScreen,
 }
 
-impl TryFrom<(&String, &toml::Value)> for Plugin {
+impl TryFrom<PluginConfig> for Plugin {
     type Error = storage::LoadError;
 
-    fn try_from((id, cfg): (&String, &toml::Value)) -> Result<Self, Self::Error> {
-        cfg.as_table()
-            .map(|cfg| {
-                if id == "ticktick" {
-                    let project = ticktick::Project::from_toml(
-                        cfg.get("project_id")
-                            .ok_or(storage::LoadError::InvalidConfig)?,
-                    )
-                    .ok_or(storage::LoadError::InvalidConfig)?;
-                    Ok(Self::Ticktick {
-                        client: cfg
-                            .try_into()
-                            .map_err(|_| storage::LoadError::InvalidConfig)?,
-                        project,
-                    })
-                } else {
-                    Err(storage::LoadError::InvalidConfig)
-                }
-            })
-            .transpose()?
-            .ok_or(storage::LoadError::InvalidConfig)
+    fn try_from(value: PluginConfig) -> Result<Self, Self::Error> {
+        match value {
+            PluginConfig::Ticktick { project_id, auth } => Ok(Self::Ticktick {
+                client: ticktick::Client::new(auth)
+                    .map_err(|_| storage::LoadError::InvalidConfig)?,
+                project: project_id.into(),
+            }),
+            PluginConfig::TestScreen => Ok(Plugin::TestScreen),
+        }
     }
 }
+
+impl TryInto<(String, Pin<Arc<Plugin>>)> for PluginConfig {
+    type Error = storage::LoadError;
+
+    fn try_into(self) -> Result<(String, Pin<Arc<Plugin>>), Self::Error> {
+        Ok((self.to_key(), Arc::pin(self.try_into()?)))
+    }
+}
+
+pub type PluginsMap = HashMap<String, Pin<Arc<Plugin>>>;
 
 impl generator::Content for Plugin {
     fn generate(&self) -> BoxFuture<'_, Result<maud::Markup, generator::Error>> {

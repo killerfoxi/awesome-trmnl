@@ -1,7 +1,7 @@
-use std::{fmt::Display, ops::Deref, time::Duration};
+use std::{ops::Deref, time::Duration};
 
 use chrono::{DateTime, Utc};
-use log::{debug, error};
+use log::{debug, error, warn};
 use maud::{html, Markup};
 use reqwest::{header, redirect, StatusCode};
 use url::Url;
@@ -10,7 +10,6 @@ use crate::generator;
 
 #[derive(Debug)]
 pub enum ClientError {
-    MissingToken,
     InvalidToken,
 }
 
@@ -127,14 +126,41 @@ impl Deref for Endpoint {
     }
 }
 
+#[derive(serde::Deserialize)]
+pub struct Auth {
+    pub token: String,
+    pub expires: Option<DateTime<Utc>>,
+}
+
+impl From<String> for Auth {
+    fn from(value: String) -> Self {
+        Auth {
+            token: value,
+            expires: None,
+        }
+    }
+}
+
+impl From<&str> for Auth {
+    fn from(value: &str) -> Self {
+        Auth::from(value.to_owned())
+    }
+}
+
 pub struct Client {
     inner: reqwest::Client,
     endpoint: Endpoint,
 }
 
 impl Client {
-    pub fn new<T: Display>(auth: T) -> Result<Self, ClientError> {
-        let mut token = header::HeaderValue::from_str(&format!("Bearer {auth}"))
+    pub fn new<T: Into<Auth>>(auth: T) -> Result<Self, ClientError> {
+        let auth: Auth = auth.into();
+        if let Some(expires) = auth.expires {
+            if expires < Utc::now() {
+                warn!("Token might be expired!");
+            }
+        }
+        let mut token = header::HeaderValue::from_str(&format!("Bearer {}", auth.token))
             .map_err(|_| ClientError::InvalidToken)?;
         token.set_sensitive(true);
         let mut headers = header::HeaderMap::new();
@@ -178,18 +204,6 @@ impl Client {
     }
 }
 
-impl TryFrom<&toml::Table> for Client {
-    type Error = ClientError;
-
-    fn try_from(value: &toml::Table) -> Result<Self, Self::Error> {
-        let token = value
-            .get("auth")
-            .and_then(|a| a.get("token").and_then(|t| t.as_str()))
-            .ok_or(ClientError::MissingToken)?;
-        Client::new(token)
-    }
-}
-
 #[derive(serde::Deserialize)]
 struct ProjectData {
     tasks: Vec<Task>,
@@ -203,12 +217,6 @@ pub struct Project {
 impl From<String> for Project {
     fn from(id: String) -> Self {
         Self { id }
-    }
-}
-
-impl Project {
-    pub fn from_toml(value: &toml::Value) -> Option<Self> {
-        value.as_str().map(|v| Self { id: v.into() })
     }
 }
 
@@ -257,13 +265,11 @@ pub struct Task {
 
 pub fn content(tasks: &[Task], now: DateTime<Utc>) -> Markup {
     html! {
-        div ."view view--full" {
-            div ."layout layout--col layout--stretch-x" {
-                (status_bar(tasks.len()))
-                div ."border--h-1" {}
-                div .stretch {
-                    (todos(tasks, now))
-                }
+        div ."layout layout--col layout--stretch-x" {
+            (status_bar(tasks.len()))
+            div ."border--h-1" {}
+            div .stretch {
+                (todos(tasks, now))
             }
         }
     }
