@@ -6,6 +6,7 @@ use crate::{generator, pages, storage};
 
 pub mod mashup;
 pub mod ticktick;
+pub mod weather;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -13,6 +14,9 @@ pub enum PluginConfig {
     Ticktick {
         project_id: String,
         auth: ticktick::Auth,
+    },
+    Weather {
+        location: String,
     },
     TestScreen,
 }
@@ -22,6 +26,7 @@ impl PluginConfig {
         match self {
             PluginConfig::Ticktick { .. } => String::from("ticktick"),
             PluginConfig::TestScreen => String::from("test"),
+            PluginConfig::Weather { .. } => String::from("weather"),
         }
     }
 }
@@ -31,13 +36,14 @@ pub enum Plugin {
         client: ticktick::Client,
         project: ticktick::Project,
     },
+    Weather {
+        client: weather::Client,
+    },
     TestScreen,
 }
 
-impl TryFrom<PluginConfig> for Plugin {
-    type Error = storage::LoadError;
-
-    fn try_from(value: PluginConfig) -> Result<Self, Self::Error> {
+impl Plugin {
+    pub async fn new(value: PluginConfig) -> Result<Self, storage::LoadError> {
         match value {
             PluginConfig::Ticktick { project_id, auth } => Ok(Self::Ticktick {
                 client: ticktick::Client::new(auth)
@@ -45,15 +51,12 @@ impl TryFrom<PluginConfig> for Plugin {
                 project: project_id.into(),
             }),
             PluginConfig::TestScreen => Ok(Plugin::TestScreen),
+            PluginConfig::Weather { location } => Ok(Self::Weather {
+                client: weather::Client::new(location)
+                    .await
+                    .map_err(|_| storage::LoadError::InvalidConfig)?,
+            }),
         }
-    }
-}
-
-impl TryInto<(String, Pin<Arc<Plugin>>)> for PluginConfig {
-    type Error = storage::LoadError;
-
-    fn try_into(self) -> Result<(String, Pin<Arc<Plugin>>), Self::Error> {
-        Ok((self.to_key(), Arc::pin(self.try_into()?)))
     }
 }
 
@@ -69,6 +72,7 @@ impl generator::Content for Plugin {
                     .await
                     .map_err(|e| e.into())
             }),
+            Plugin::Weather { client } => Box::pin(async { client.fetch_and_display().await }),
         }
     }
 }

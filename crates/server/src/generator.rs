@@ -23,6 +23,35 @@ pub enum Error {
     Unknown,
 }
 
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        let target = err.url().map_or(String::default(), ToString::to_string);
+        if err.is_status() {
+            Self::Fetch {
+                kind: FetchErrorKind::Request(err.status().unwrap()),
+                target,
+            }
+        } else if err.is_connect() {
+            Self::Fetch {
+                kind: FetchErrorKind::Network,
+                target,
+            }
+        } else if err.is_timeout() {
+            Self::Fetch {
+                kind: FetchErrorKind::Timeout,
+                target,
+            }
+        } else if err.is_decode() {
+            Self::Fetch {
+                kind: FetchErrorKind::InvalidData,
+                target,
+            }
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         match self {

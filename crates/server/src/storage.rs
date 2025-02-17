@@ -17,8 +17,8 @@ pub struct Storage {
 pub type LoadError = ondisk::Error;
 
 impl Storage {
-    pub fn load() -> Result<Self, LoadError> {
-        let devices = ondisk::load_local()?;
+    pub async fn load() -> Result<Self, LoadError> {
+        let devices = ondisk::load_local().await?;
         debug!("Loaded {} devices", devices.len());
         debug!("Devices: {devices:#?}");
         Ok(Self { devices })
@@ -54,6 +54,7 @@ impl Storage {
 mod ondisk {
     use std::{collections::HashMap, fmt::Debug, fs, pin::Pin, sync::Arc};
 
+    use log::error;
     use url::Url;
 
     use crate::plugins::{self, mashup::Mashup, PluginsMap};
@@ -62,7 +63,19 @@ mod ondisk {
     pub enum Error {
         NotFound,
         InvalidConfig,
-        LoadConfig(String),
+        LoadConfig(toml::de::Error),
+    }
+
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Error::NotFound => write!(f, "The device file was not found"),
+                Error::InvalidConfig => {
+                    write!(f, "The device file was loaded, but contained invalid data.")
+                }
+                Error::LoadConfig(error) => write!(f, "{error}"),
+            }
+        }
     }
 
     #[derive(Debug, serde::Deserialize)]
@@ -115,30 +128,34 @@ mod ondisk {
         }
     }
 
-    pub fn load_local() -> Result<HashMap<String, Device>, Error> {
+    pub async fn load_local() -> Result<HashMap<String, Device>, Error> {
         let cfg = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/devices.toml"))
             .map_err(|_| Error::NotFound)?;
-        let toml: HashMap<String, DeviceConfig> =
-            toml::from_str(&cfg).map_err(|e| Error::LoadConfig(e.message().into()))?;
-        toml.into_iter()
-            .map(|(id, dinfo)| {
-                let plugins: plugins::PluginsMap = dinfo
-                    .plugins
-                    .into_iter()
-                    .map(
-                        |pluginspec| -> Result<(String, Pin<Arc<plugins::Plugin>>), Error> {
-                            pluginspec.try_into()
-                        },
-                    )
-                    .collect::<Result<_, Error>>()?;
-                Ok((
-                    id,
-                    Device {
-                        mashup: dinfo.mashup.into_resolved_mashup(&plugins),
-                        plugins,
-                    },
-                ))
-            })
-            .collect::<Result<HashMap<_, _>, Error>>()
+        let toml: HashMap<String, DeviceConfig> = toml::from_str(&cfg)
+            .inspect_err(|e| error!("{e}"))
+            .map_err(Error::LoadConfig)?;
+        let mut devices = HashMap::new();
+        for (id, dinfo) in toml {
+            let mut plugins = HashMap::new();
+            for pluginspec in dinfo.plugins {
+                let plugin = pluginspec.to_key();
+                plugins.insert(
+                    plugin.clone(),
+                    Arc::pin(
+                        plugins::Plugin::new(pluginspec)
+                            .await
+                            .inspect_err(|_| error!("Creating {plugin} for {id} failed"))?,
+                    ),
+                );
+            }
+            devices.insert(
+                id,
+                Device {
+                    mashup: dinfo.mashup.into_resolved_mashup(&plugins),
+                    plugins,
+                },
+            );
+        }
+        Ok(devices)
     }
 }

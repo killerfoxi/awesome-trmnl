@@ -79,7 +79,8 @@ async fn main() -> color_eyre::Result<()> {
         renderer: Arc::new(blender::Instance::new().await.unwrap()),
         storage: Arc::new(
             storage::Storage::load()
-                .map_err(|e| eyre!("While trying to load local device file: {e:?}"))?,
+                .await
+                .map_err(|e| eyre!("While trying to load local device file: {e}"))?,
         ),
     };
     let app = Router::new()
