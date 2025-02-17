@@ -1,4 +1,7 @@
-use chrono::{FixedOffset, NaiveDateTime};
+use std::fmt::Display;
+
+use chrono::{DateTime, FixedOffset, NaiveDate};
+use itertools::izip;
 use log::{debug, error};
 use maud::{html, Markup, PreEscaped};
 use url::Url;
@@ -9,16 +12,32 @@ pub fn content(weather: &Weather) -> Markup {
     html! {
         div ."layout layout--col layout--center" {
             div {
-                (weather.current.weather_code.as_img(96))
+                (weather.current.weather_code.as_img())
             }
-            div ."flex flex--row flex--center-x flex--top" {
+            div ."flex flex--row flex--center-x flex--top gap" {
                 div ."flex flex--col flex--center gap--xsmall" {
-                        span ."title px--1" { (format!("{:1}", weather.current.temperature)) }
+                        span ."title px--1" { (weather.current.temperature) }
                         span ."description px--1" { (PreEscaped(iconify::svg!("wi:celsius", width =  "32px"))) }
                 }
                 div ."flex flex--col flex--center gap--xsmall" {
                         span ."title px--1" { (weather.current.humidity) }
                         span ."description px--1" { (PreEscaped(iconify::svg!("wi:humidity", width = "28px"))) }
+                }
+            }
+            div ."stretch-x flex flex--row flex--stretch-x flex--top gap" {
+                div .item {
+                    div .meta {}
+                    div .content {
+                        span ."title title--small" { (weather.daily[0].temperatures.min()) }
+                        span ."description" { "min" }
+                    }
+                }
+                div .item {
+                    div .meta {}
+                    div .content {
+                        span ."title title--small" { (weather.daily[0].temperatures.max()) }
+                        span ."description" { "max" }
+                    }
                 }
             }
         }
@@ -67,7 +86,7 @@ pub enum WeatherCode {
 }
 
 impl WeatherCode {
-    pub fn as_img(&self, width: u32) -> Markup {
+    pub fn as_img(&self) -> Markup {
         match self {
             WeatherCode::Unclear => todo!(),
             WeatherCode::Clear => {
@@ -151,22 +170,143 @@ mod utc_offset {
     }
 }
 
-#[derive(serde::Deserialize)]
-pub struct Forecast {
-    #[serde(with = "incomplete_iso8601")]
-    time: NaiveDateTime,
-    #[serde(rename = "temperature_2m")]
-    temperature: f64,
-    #[serde(rename = "relative_humidity_2m")]
-    humidity: u8,
-    weather_code: WeatherCode,
+pub struct Temperature(f64);
+
+impl Display for Temperature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.1}", self.0)
+    }
+}
+
+impl From<f64> for Temperature {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+pub struct TemperatureRange(Temperature, Temperature);
+
+impl TemperatureRange {
+    pub fn new(low: Temperature, high: Temperature) -> Self {
+        Self(low, high)
+    }
+
+    pub fn min(&self) -> &Temperature {
+        &self.0
+    }
+
+    pub fn max(&self) -> &Temperature {
+        &self.1
+    }
+}
+
+pub struct Humidity(u8);
+
+impl Display for Humidity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<u8> for Humidity {
+    fn from(value: u8) -> Self {
+        Self(value)
+    }
+}
+
+pub struct CurrentForecast {
+    pub time: DateTime<FixedOffset>,
+    pub temperature: Temperature,
+    pub humidity: Humidity,
+    pub weather_code: WeatherCode,
+}
+
+pub struct DailyForecast {
+    pub date: NaiveDate,
+    pub temperatures: TemperatureRange,
+    pub weather_code: WeatherCode,
 }
 
 #[derive(serde::Deserialize)]
+#[serde(try_from = "intermediate::Weather")]
 pub struct Weather {
-    #[serde(rename = "utc_offset_seconds", with = "utc_offset")]
-    ufc_offset: FixedOffset,
-    current: Forecast,
+    pub current: CurrentForecast,
+    pub daily: Vec<DailyForecast>,
+}
+
+pub struct ConvertError;
+
+impl Display for ConvertError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "failed to convert into target struct")
+    }
+}
+
+impl TryFrom<intermediate::Weather> for Weather {
+    type Error = ConvertError;
+
+    fn try_from(weather: intermediate::Weather) -> Result<Self, Self::Error> {
+        let (current, daily) = (weather.current, weather.daily);
+        Ok(Self {
+            current: CurrentForecast {
+                time: current
+                    .time
+                    .and_local_timezone(weather.ufc_offset)
+                    .latest()
+                    .ok_or(ConvertError)?,
+                temperature: current.temperature.into(),
+                humidity: current.humidity.into(),
+                weather_code: current.weather_code,
+            },
+            daily: izip!(
+                daily.time,
+                daily.temperature_max,
+                daily.temperature_min,
+                daily.weather_code
+            )
+            .map(|(time, tmax, tmin, wc)| DailyForecast {
+                date: time,
+                temperatures: TemperatureRange::new(tmin.into(), tmax.into()),
+                weather_code: wc,
+            })
+            .collect(),
+        })
+    }
+}
+
+mod intermediate {
+    use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
+
+    use super::WeatherCode;
+
+    #[derive(serde::Deserialize)]
+    pub struct CurrentForecast {
+        #[serde(with = "super::incomplete_iso8601")]
+        pub time: NaiveDateTime,
+        #[serde(rename = "temperature_2m")]
+        pub temperature: f64,
+        #[serde(rename = "relative_humidity_2m")]
+        pub humidity: u8,
+        pub weather_code: WeatherCode,
+    }
+
+    #[derive(serde::Deserialize)]
+    pub struct DailyForecast {
+        pub time: Vec<NaiveDate>,
+        #[serde(rename = "temperature_2m_max")]
+        pub temperature_max: Vec<f64>,
+        #[serde(rename = "temperature_2m_min")]
+        pub temperature_min: Vec<f64>,
+        pub weather_code: Vec<WeatherCode>,
+    }
+
+    #[derive(serde::Deserialize)]
+    pub struct Weather {
+        #[serde(rename = "utc_offset_seconds", with = "super::utc_offset")]
+        pub ufc_offset: FixedOffset,
+        pub current: CurrentForecast,
+        pub daily: DailyForecast,
+    }
 }
 
 pub struct Client {
@@ -186,10 +326,16 @@ impl Client {
 
     pub async fn fetch(&self) -> Result<Weather, reqwest::Error> {
         let mut url = self.url.clone();
-        url.query_pairs_mut().append_pair(
-            "current",
-            "temperature_2m,relative_humidity_2m,weather_code",
-        );
+        url.query_pairs_mut()
+            .append_pair(
+                "current",
+                "temperature_2m,relative_humidity_2m,weather_code",
+            )
+            .append_pair(
+                "daily",
+                "weather_code,temperature_2m_max,temperature_2m_min",
+            )
+            .append_pair("forecast_days", "3");
         reqwest::get(url)
             .await
             .inspect(|d| debug!("Got weather response: {d:#?}"))?
