@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use log::debug;
 
@@ -17,8 +17,8 @@ pub struct Storage {
 pub type LoadError = ondisk::Error;
 
 impl Storage {
-    pub async fn load() -> Result<Self, LoadError> {
-        let devices = ondisk::load_local().await?;
+    pub async fn load(path: Option<PathBuf>) -> Result<Self, LoadError> {
+        let devices = ondisk::load_local(path).await?;
         debug!("Loaded {} devices", devices.len());
         debug!("Devices: {devices:#?}");
         Ok(Self { devices })
@@ -52,7 +52,7 @@ impl Storage {
 }
 
 mod ondisk {
-    use std::{collections::HashMap, fmt::Debug, fs, pin::Pin, sync::Arc};
+    use std::{collections::HashMap, fmt::Debug, fs, path::PathBuf, pin::Pin, sync::Arc};
 
     use log::error;
     use url::Url;
@@ -128,9 +128,12 @@ mod ondisk {
         }
     }
 
-    pub async fn load_local() -> Result<HashMap<String, Device>, Error> {
-        let cfg = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/devices.toml"))
-            .map_err(|_| Error::NotFound)?;
+    pub async fn load_local(path: Option<PathBuf>) -> Result<HashMap<String, Device>, Error> {
+        let cfg = fs::read_to_string(path.unwrap_or(PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/devices.toml"
+        ))))
+        .map_err(|_| Error::NotFound)?;
         let toml: HashMap<String, DeviceConfig> = toml::from_str(&cfg)
             .inspect_err(|e| error!("{e}"))
             .map_err(Error::LoadConfig)?;

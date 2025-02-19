@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::LazyLock};
+use std::{str::FromStr, sync::OnceLock};
 
 use url::Url;
 
@@ -25,7 +25,7 @@ impl Resource {
 
     pub fn fully_qualified_url(&self) -> Url {
         match self {
-            Self::Local(path) => SELF_URL.join(path.path()).unwrap(),
+            Self::Local(path) => SELF_URL.get().unwrap().join(path.path()).unwrap(),
             Self::Remote(u) => u.clone(),
         }
     }
@@ -58,4 +58,10 @@ impl FromStr for Resource {
     }
 }
 
-static SELF_URL: LazyLock<Url> = LazyLock::new(|| Url::parse("http://localhost:8223/").unwrap());
+pub fn init_self(port: u16) {
+    SELF_URL
+        .set(Url::parse(&format!("http://localhost:{port}/")).unwrap())
+        .unwrap();
+}
+
+static SELF_URL: OnceLock<Url> = OnceLock::new();
