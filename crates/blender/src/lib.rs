@@ -1,4 +1,7 @@
-use std::io::{Seek, Write};
+use std::{
+    io::{Seek, Write},
+    time::Duration,
+};
 
 use chromiumoxide::{
     cdp::browser_protocol::target::{CreateBrowserContextParams, CreateTargetParams},
@@ -9,7 +12,7 @@ use chromiumoxide::{
 };
 use futures::stream::StreamExt;
 use image::load_from_memory_with_format;
-use log::debug;
+use log::{debug, error};
 use tokio::task::JoinHandle;
 
 #[derive(Debug)]
@@ -52,6 +55,14 @@ impl RenderedImage {
 
     pub fn write_as_png<W: Seek + Write>(&self, writer: &mut W) -> Result<(), Error> {
         Ok(self.inner.write_to(writer, image::ImageFormat::Png)?)
+    }
+
+    pub fn write_as_qoi<W: Seek + Write>(&self, writer: &mut W) -> Result<(), Error> {
+        Ok(self
+            .inner
+            .to_rgb8()
+            .write_to(writer, image::ImageFormat::Qoi)
+            .inspect_err(|e| error!("Could not write image: {e:?}"))?)
     }
 
     pub fn byte_size(&self) -> usize {
@@ -115,6 +126,8 @@ impl Instance {
                     .unwrap(),
             )
             .await?;
+        // TODO: Find a non time based synchronisation about finished rendering.
+        tokio::time::sleep(Duration::from_secs(2)).await;
         let img = load_from_memory_with_format(
             &screen.screenshot(ScreenshotParams::default()).await?,
             image::ImageFormat::Png,

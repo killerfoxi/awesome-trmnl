@@ -2,15 +2,32 @@ use crate::{device, error::Canonical, generator::Content, pages, storage};
 
 use axum::{
     extract::{FromRef, State},
+    response::IntoResponse,
     routing::get,
     Router,
 };
+use http::header;
+use itertools::Itertools;
 use log::{debug, error, info};
 use maud::{html, Markup};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::services::fs;
 use url::Url;
+
+enum ImageType {
+    Png,
+    Qoi,
+}
+
+impl ImageType {
+    fn content_type(&self) -> &'static str {
+        match self {
+            ImageType::Png => "image/png",
+            ImageType::Qoi => "image/qoi",
+        }
+    }
+}
 
 pub(crate) async fn serve(listener: TcpListener, state: ServerState) -> color_eyre::Result<()> {
     let app = Router::new()
@@ -34,7 +51,8 @@ pub(crate) async fn serve(listener: TcpListener, state: ServerState) -> color_ey
 async fn render_screen(
     renderer: &blender::Instance,
     url: Url,
-) -> axum::response::Result<Box<[u8]>, Canonical> {
+    image_type: ImageType,
+) -> axum::response::Result<impl IntoResponse, Canonical> {
     info!("Requested rendering of: {url}");
     let img = renderer
         .render(url.as_str())
@@ -42,16 +60,44 @@ async fn render_screen(
         .inspect_err(|e| error!("Rendering error: {e:?}"))
         .map(|i| i.into_grayscaled())?;
     let mut writer = std::io::Cursor::new(Vec::with_capacity(img.byte_size()));
-    img.write_as_png(&mut writer)?;
-    Ok(writer.into_inner().into_boxed_slice())
+    match image_type {
+        ImageType::Png => img.write_as_png(&mut writer)?,
+        ImageType::Qoi => img.write_as_qoi(&mut writer)?,
+    }
+    Ok((
+        [(header::CONTENT_TYPE, image_type.content_type())],
+        writer.into_inner().into_boxed_slice(),
+    ))
+}
+
+fn determine_image_type(headers: header::HeaderMap) -> ImageType {
+    headers
+        .get(http::header::ACCEPT)
+        .and_then(|a| {
+            a.to_str().ok().map(|accepting| {
+                accepting
+                    .split(',')
+                    .contains("image/qoi")
+                    .then_some(ImageType::Qoi)
+            })
+        })
+        .flatten()
+        .unwrap_or(ImageType::Png)
 }
 
 #[axum::debug_handler]
 async fn render_screen_img(
     State(server): State<ServerState>,
+    headers: http::header::HeaderMap,
     device: device::Info,
-) -> axum::response::Result<Box<[u8]>, Canonical> {
-    render_screen(&server.renderer, device.content_url).await
+) -> impl IntoResponse {
+    render_screen(
+        &server.renderer,
+        device.content_url,
+        determine_image_type(headers),
+    )
+    .await
+    .inspect_err(|e| error!("Failed to render image: {e:?}"))
 }
 
 #[axum::debug_handler]
