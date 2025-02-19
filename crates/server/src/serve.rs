@@ -12,7 +12,7 @@ use log::{debug, error, info};
 use maud::{html, Markup};
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tower_http::services::fs;
+use tower_http::{services::fs, trace::TraceLayer};
 use url::Url;
 
 enum ImageType {
@@ -29,7 +29,11 @@ impl ImageType {
     }
 }
 
-pub(crate) async fn serve(listener: TcpListener, state: ServerState) -> color_eyre::Result<()> {
+pub(crate) async fn serve(
+    listener: TcpListener,
+    state: ServerState,
+    log_requests: bool,
+) -> color_eyre::Result<()> {
     let app = Router::new()
         .route(
             "/",
@@ -44,6 +48,23 @@ pub(crate) async fn serve(listener: TcpListener, state: ServerState) -> color_ey
         .route("/preview/{id}", get(preview))
         .nest_service("/assets", fs::ServeDir::new("assets"))
         .with_state(state);
+    let app = if log_requests {
+        app.layer(
+            TraceLayer::new_for_http()
+                .on_request(|req: &axum::extract::Request, _span: &tracing::Span| {
+                    info!("{:?} {}: {:#?}", req.version(), req.uri(), req.headers())
+                })
+                .on_response(
+                    |resp: &axum::response::Response,
+                     _duration: std::time::Duration,
+                     _span: &tracing::Span| {
+                        info!("Responding: {}; {:#?}", resp.status(), resp.headers())
+                    },
+                ),
+        )
+    } else {
+        app
+    };
     axum::serve(listener, app).await?;
     Ok(())
 }

@@ -25,6 +25,9 @@ struct Args {
 
     #[arg(short, long)]
     devices_file: Option<PathBuf>,
+
+    #[arg(long, default_value_t = false)]
+    show_request_details: bool,
 }
 
 #[tokio::main]
@@ -50,6 +53,6 @@ async fn main() -> color_eyre::Result<()> {
         "Successfully started listening on {}",
         listener.local_addr()?
     );
-    serve::serve(listener, state).await?;
+    serve::serve(listener, state, args.show_request_details).await?;
     Ok(())
 }
