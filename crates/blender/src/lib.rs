@@ -4,7 +4,11 @@ use std::{
 };
 
 use chromiumoxide::{
-    cdp::browser_protocol::target::{CreateBrowserContextParams, CreateTargetParams},
+    cdp::browser_protocol::{
+        accessibility::EventLoadComplete,
+        page::EventLoadEventFired,
+        target::{CreateBrowserContextParams, CreateTargetParams},
+    },
     error::CdpError,
     handler::viewport::Viewport,
     page::ScreenshotParams,
@@ -126,8 +130,7 @@ impl Instance {
                     .unwrap(),
             )
             .await?;
-        // TODO: Find a non time based synchronisation about finished rendering.
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_millis(800)).await;
         let img = load_from_memory_with_format(
             &screen.screenshot(ScreenshotParams::default()).await?,
             image::ImageFormat::Png,
