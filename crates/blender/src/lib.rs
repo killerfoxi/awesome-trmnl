@@ -4,11 +4,7 @@ use std::{
 };
 
 use chromiumoxide::{
-    cdp::browser_protocol::{
-        accessibility::EventLoadComplete,
-        page::EventLoadEventFired,
-        target::{CreateBrowserContextParams, CreateTargetParams},
-    },
+    cdp::browser_protocol::target::{CreateBrowserContextParams, CreateTargetParams},
     error::CdpError,
     handler::viewport::Viewport,
     page::ScreenshotParams,
@@ -93,7 +89,7 @@ impl Instance {
                 .viewport(Some(Viewport {
                     width: 800,
                     height: 480,
-                    device_scale_factor: Some(1.0),
+                    device_scale_factor: Some(4.0),
                     emulating_mobile: false,
                     is_landscape: true,
                     has_touch: false,
@@ -130,9 +126,11 @@ impl Instance {
                     .unwrap(),
             )
             .await?;
-        tokio::time::sleep(Duration::from_millis(800)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
         let img = load_from_memory_with_format(
-            &screen.screenshot(ScreenshotParams::default()).await?,
+            &screen
+                .screenshot(ScreenshotParams::builder().from_surface(false).build())
+                .await?,
             image::ImageFormat::Png,
         )?;
         self.browser.dispose_browser_context(context).await?;

@@ -78,17 +78,15 @@ async fn render_screen(
     let img = renderer
         .render(url.as_str())
         .await
-        .inspect_err(|e| error!("Rendering error: {e:?}"))
-        .map(|i| i.into_grayscaled())?;
+        .inspect_err(|e| error!("Rendering error: {e:?}"))?; //.map(|i| i.into_grayscaled())?;
     let mut writer = std::io::Cursor::new(Vec::with_capacity(img.byte_size()));
     match image_type {
         ImageType::Png => img.write_as_png(&mut writer)?,
         ImageType::Qoi => img.write_as_qoi(&mut writer)?,
     }
-    Ok((
-        [(header::CONTENT_TYPE, image_type.content_type())],
-        writer.into_inner().into_boxed_slice(),
-    ))
+    let data = writer.into_inner().into_boxed_slice();
+    debug!("Image size: {}", data.len());
+    Ok(([(header::CONTENT_TYPE, image_type.content_type())], data))
 }
 
 fn determine_image_type(headers: header::HeaderMap) -> ImageType {
