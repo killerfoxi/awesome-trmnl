@@ -1,13 +1,12 @@
 use std::{
     io::{Seek, Write},
+    path::PathBuf,
     time::Duration,
 };
 
 use chromiumoxide::{
     cdp::browser_protocol::target::{CreateBrowserContextParams, CreateTargetParams},
     error::CdpError,
-    handler::viewport::Viewport,
-    page::ScreenshotParams,
     Browser, BrowserConfig,
 };
 use futures::stream::StreamExt;
@@ -82,22 +81,16 @@ pub struct Instance {
 }
 
 impl Instance {
-    pub async fn new() -> Result<Self, Error> {
-        let (browser, mut handler) = Browser::launch(
-            BrowserConfig::builder()
-                .new_headless_mode()
-                .viewport(Some(Viewport {
-                    width: 800,
-                    height: 480,
-                    device_scale_factor: Some(4.0),
-                    emulating_mobile: false,
-                    is_landscape: true,
-                    has_touch: false,
-                }))
-                .build()
-                .map_err(Error::Setup)?,
-        )
-        .await?;
+    pub async fn new(user_dir: Option<PathBuf>) -> Result<Self, Error> {
+        let mut config = BrowserConfig::builder()
+            .new_headless_mode()
+            .window_size(800, 480)
+            .arg("--use-skia-font-manager")
+            .arg("--disable-gpu")
+            .build()
+            .map_err(Error::Setup)?;
+        config.user_data_dir = user_dir;
+        let (browser, mut handler) = Browser::launch(config).await?;
 
         let handle = tokio::task::spawn(async move {
             while let Some(e) = handler.next().await {
@@ -126,10 +119,13 @@ impl Instance {
                     .unwrap(),
             )
             .await?;
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        tokio::time::sleep(Duration::from_millis(1300)).await;
+        let element = screen.find_element("html").await?;
         let img = load_from_memory_with_format(
-            &screen
-                .screenshot(ScreenshotParams::builder().from_surface(false).build())
+            &element
+                .screenshot(
+                    chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat::Png,
+                )
                 .await?,
             image::ImageFormat::Png,
         )?;

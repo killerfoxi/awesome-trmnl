@@ -80,8 +80,11 @@ pub fn screen(inner: Markup) -> Markup {
         (DOCTYPE)
         head {
             title { "Awesome TRMNL" }
+            meta name="viewport" content="width=device-width, initial-scale=1.0";
             link rel="stylesheet" href="https://usetrmnl.com/css/latest/plugins.css";
+            link rel="preconnect" href="https://fonts.googleapis.com";
             link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200";
+            link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;350;375;400;450;600;700&display=swap" rel="stylesheet";
         }
         body .environment.trmnl {
             div .screen {

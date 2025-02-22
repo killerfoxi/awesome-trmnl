@@ -10,33 +10,35 @@ use crate::generator;
 
 pub fn content(weather: &Weather) -> Markup {
     html! {
-        div ."layout layout--col layout--center" {
+        div ."layout layout--col gap--space-between" {
             div {
                 (weather.current.weather_code.as_img())
             }
-            div ."flex flex--row flex--center-x flex--top gap" {
-                div ."flex flex--col flex--center gap--xsmall" {
-                        span ."title px--1" { (weather.current.temperature) }
-                        span ."description px--1" { (PreEscaped(iconify::svg!("wi:celsius", width =  "32px"))) }
+            div ."grid row--center" {
+                div ."col col--center col--span-2 w--full text--center" {
+                        span ."value value--large" { (weather.current.temperature) }
+                        span ."label w--full" { (PreEscaped(iconify::svg!("wi:celsius", width =  "32px"))) }
                 }
-                div ."flex flex--col flex--center gap--xsmall" {
-                        span ."title px--1" { (weather.current.humidity) }
-                        span ."description px--1" { (PreEscaped(iconify::svg!("wi:humidity", width = "28px"))) }
+                div ."col col--center col--span-2 w--full text--center" {
+                        span ."value value--large" { (weather.current.humidity) }
+                        span ."label w--full" { (PreEscaped(iconify::svg!("wi:humidity", width =  "32px"))) }
                 }
             }
-            div ."stretch-x flex flex--row flex--stretch-x flex--top gap" {
-                div .item {
-                    div .meta {}
-                    div .content {
-                        span ."title title--small" { (weather.daily[0].temperatures.min()) }
-                        span ."description" { "min" }
+            div .grid {
+                div ."row row--center gap--medium" {
+                    div .item {
+                        div .meta {}
+                        div .content {
+                            span ."value value--xxsmall" { (weather.daily[0].temperatures.min()) }
+                            span ."description w--full" { "min" }
+                        }
                     }
-                }
-                div .item {
-                    div .meta {}
-                    div .content {
-                        span ."title title--small" { (weather.daily[0].temperatures.max()) }
-                        span ."description" { "max" }
+                    div .item {
+                        div .meta {}
+                        div .content {
+                            span ."value value--xxsmall" { (weather.daily[0].temperatures.max()) }
+                            span ."description w--full" { "max" }
+                        }
                     }
                 }
             }

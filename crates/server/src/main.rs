@@ -28,6 +28,9 @@ struct Args {
 
     #[arg(long, default_value_t = false)]
     show_request_details: bool,
+
+    #[arg(long)]
+    user_dir: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -39,7 +42,7 @@ async fn main() -> color_eyre::Result<()> {
     resource::init_self(args.port);
 
     let state = serve::ServerState {
-        renderer: Arc::new(blender::Instance::new().await.unwrap()),
+        renderer: Arc::new(blender::Instance::new(args.user_dir).await.unwrap()),
         storage: Arc::new(
             storage::Storage::load(args.devices_file)
                 .await
