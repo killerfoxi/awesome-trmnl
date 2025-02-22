@@ -3,7 +3,7 @@ use std::fmt::Display;
 use chrono::{DateTime, FixedOffset, NaiveDate};
 use itertools::izip;
 use log::{debug, error};
-use maud::{html, Markup, PreEscaped};
+use maud::{Markup, PreEscaped, html};
 use url::Url;
 
 use crate::generator;
@@ -30,14 +30,14 @@ pub fn content(weather: &Weather) -> Markup {
                         div .meta {}
                         div .content {
                             span ."value value--xxsmall" { (weather.daily[0].temperatures.min()) }
-                            span ."description w--full" { "min" }
+                            span ."description w--auto" { "min" }
                         }
                     }
                     div .item {
                         div .meta {}
                         div .content {
                             span ."value value--xxsmall" { (weather.daily[0].temperatures.max()) }
-                            span ."description w--full" { "max" }
+                            span ."description w--auto" { "max" }
                         }
                     }
                 }
