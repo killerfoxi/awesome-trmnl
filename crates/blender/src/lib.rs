@@ -1,3 +1,5 @@
+#![warn(tail_expr_drop_order)]
+
 use std::{
     io::{Seek, Write},
     path::PathBuf,
@@ -5,9 +7,9 @@ use std::{
 };
 
 use chromiumoxide::{
+    Browser, BrowserConfig,
     cdp::browser_protocol::target::{CreateBrowserContextParams, CreateTargetParams},
     error::CdpError,
-    Browser, BrowserConfig,
 };
 use futures::stream::StreamExt;
 use image::load_from_memory_with_format;

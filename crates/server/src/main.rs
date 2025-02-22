@@ -1,3 +1,5 @@
+#![warn(tail_expr_drop_order)]
+
 use std::{
     net::{Ipv6Addr, SocketAddr},
     path::PathBuf,
