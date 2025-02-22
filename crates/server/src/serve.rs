@@ -73,7 +73,7 @@ async fn render_screen(
     renderer: &blender::Instance,
     url: Url,
     image_type: ImageType,
-) -> axum::response::Result<impl IntoResponse, Canonical> {
+) -> axum::response::Result<impl IntoResponse + use<>, Canonical> {
     info!("Requested rendering of: {url}");
     let img = renderer
         .render(url.as_str())

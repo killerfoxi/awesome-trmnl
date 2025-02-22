@@ -41,7 +41,7 @@ impl Storage {
     pub fn content_generator(
         &self,
         id: &str,
-    ) -> Result<&impl generator::Content, generator::SetupError> {
+    ) -> Result<&(impl generator::Content + use<>), generator::SetupError> {
         debug!("Trying to find {id}");
         self.devices
             .get(id)
