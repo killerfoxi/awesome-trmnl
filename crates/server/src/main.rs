@@ -72,7 +72,7 @@ async fn main() -> color_eyre::Result<()> {
         .init();
 
     let args = Args::parse();
-    resource::init_self(args.port);
+    resource::init_self(args.port, !args.tls.nouse_tls);
 
     let tls = if args.tls.nouse_tls {
         None

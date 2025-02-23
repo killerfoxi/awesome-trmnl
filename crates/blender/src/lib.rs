@@ -88,6 +88,7 @@ impl Instance {
             .new_headless_mode()
             .window_size(800, 480)
             .arg("--use-skia-font-manager")
+            .arg("--allow-insecure-localhost")
             .arg("--disable-gpu")
             .build()
             .map_err(Error::Setup)?;

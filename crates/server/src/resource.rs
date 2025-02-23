@@ -58,9 +58,15 @@ impl FromStr for Resource {
     }
 }
 
-pub fn init_self(port: u16) {
+pub fn init_self(port: u16, ssl: bool) {
     SELF_URL
-        .set(Url::parse(&format!("http://localhost:{port}/")).unwrap())
+        .set(
+            Url::parse(&format!(
+                "{}://localhost:{port}/",
+                if ssl { "https" } else { "http" }
+            ))
+            .unwrap(),
+        )
         .unwrap();
 }
 
