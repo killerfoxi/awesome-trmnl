@@ -2,17 +2,18 @@ use crate::{device, error::Canonical, generator::Content, pages, storage};
 
 use axum::{
     Router,
-    extract::{FromRef, State},
-    response::IntoResponse,
+    extract::{FromRef, Path, State},
+    response::{IntoResponse, Response},
     routing::get,
 };
 use axum_server::tls_rustls::RustlsConfig;
-use http::header;
+use http::{StatusCode, header};
 use itertools::Itertools;
 use log::{debug, error, info};
 use maud::{Markup, html};
+use rust_embed::Embed;
 use std::{net::SocketAddr, sync::Arc};
-use tower_http::{services::fs, trace::TraceLayer};
+use tower_http::trace::TraceLayer;
 use url::Url;
 
 enum ImageType {
@@ -27,6 +28,10 @@ impl ImageType {
             ImageType::Qoi => "image/qoi",
         }
     }
+}
+
+pub(crate) async fn embedded_assets(Path(file): Path<String>) -> impl IntoResponse {
+    EmbededFile(file)
 }
 
 pub(crate) async fn serve(
@@ -47,7 +52,7 @@ pub(crate) async fn serve(
         .route("/content/{id}", get(screen_content))
         .route("/screen/{id}", get(render_screen_img))
         .route("/preview/{id}", get(preview))
-        .nest_service("/assets", fs::ServeDir::new("assets"))
+        .route("/assets/{*file}", get(embedded_assets))
         .with_state(state);
     let app = if log_requests {
         app.layer(
@@ -146,6 +151,29 @@ async fn preview(_: State<Arc<storage::Storage>>, device: device::Info) -> Marku
         h1 { "Preview TRMNL screen" }
         img src=(device.image_url.as_href());
     })
+}
+
+#[derive(Embed)]
+#[folder = "assets/"]
+struct Assets;
+
+pub struct EmbededFile<T>(pub T);
+
+impl<T> IntoResponse for EmbededFile<T>
+where
+    T: Into<String>,
+{
+    fn into_response(self) -> Response {
+        let path = self.0.into();
+
+        match Assets::get(path.as_str()) {
+            Some(content) => {
+                let mime = mime_guess::from_path(path).first_or_octet_stream();
+                ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
+            }
+            None => (StatusCode::NOT_FOUND, "404 Not Found").into_response(),
+        }
+    }
 }
 
 #[derive(FromRef, Clone)]
