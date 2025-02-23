@@ -65,7 +65,11 @@ struct TlsArgs {
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
-    pretty_env_logger::init();
+    pretty_env_logger::formatted_builder()
+        .filter_module("atrmnl_server", log::LevelFilter::Info)
+        .filter_module("chromiumoxide", log::LevelFilter::Off)
+        .parse_env("RUST_LOG")
+        .init();
 
     let args = Args::parse();
     resource::init_self(args.port);
