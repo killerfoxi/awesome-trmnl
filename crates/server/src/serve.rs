@@ -1,17 +1,17 @@
 use crate::{device, error::Canonical, generator::Content, pages, storage};
 
 use axum::{
+    Router,
     extract::{FromRef, State},
     response::IntoResponse,
     routing::get,
-    Router,
 };
+use axum_server::tls_rustls::RustlsConfig;
 use http::header;
 use itertools::Itertools;
 use log::{debug, error, info};
-use maud::{html, Markup};
-use std::sync::Arc;
-use tokio::net::TcpListener;
+use maud::{Markup, html};
+use std::{net::SocketAddr, sync::Arc};
 use tower_http::{services::fs, trace::TraceLayer};
 use url::Url;
 
@@ -30,7 +30,8 @@ impl ImageType {
 }
 
 pub(crate) async fn serve(
-    listener: TcpListener,
+    addr: SocketAddr,
+    tls: Option<RustlsConfig>,
     state: ServerState,
     log_requests: bool,
 ) -> color_eyre::Result<()> {
@@ -65,7 +66,15 @@ pub(crate) async fn serve(
     } else {
         app
     };
-    axum::serve(listener, app).await?;
+    if let Some(cfg) = tls {
+        axum_server::bind_rustls(addr, cfg)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        axum_server::bind(addr)
+            .serve(app.into_make_service())
+            .await?;
+    }
     Ok(())
 }
 

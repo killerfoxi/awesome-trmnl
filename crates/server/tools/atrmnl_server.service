@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=exec
 WorkingDirectory=~
-ExecStart=%h/.cargo/bin/atrmnl_server -p 8223 -d %h/.config/atrmnl_server/devices.toml
+ExecStart=%h/.cargo/bin/atrmnl_server -p 8223 -d %h/.config/atrmnl_server/devices.toml --cert_file %h/.config/atrmnl_server/ssl/cert.pem --key_file %h/.config/atrmnl_server/ssl/private-key.pem
 Restart=on-failure
 
 [Install]
