@@ -23,6 +23,15 @@ impl Resource {
         Self::Local(format!("local:/screen/{id}").parse().unwrap())
     }
 
+    pub fn into_remote(self, base: Url) -> Result<Resource, Error> {
+        match self {
+            Resource::Local(url) => Ok(Self::Remote(
+                base.join(url.path()).map_err(|_| Error::InvalidFormat)?,
+            )),
+            Resource::Remote(url) => Ok(Self::Remote(url)),
+        }
+    }
+
     pub fn fully_qualified_url(&self) -> Url {
         match self {
             Self::Local(path) => SELF_URL.get().unwrap().join(path.path()).unwrap(),
@@ -68,6 +77,10 @@ pub fn init_self(port: u16, ssl: bool) {
             .unwrap(),
         )
         .unwrap();
+}
+
+pub fn self_url() -> Url {
+    SELF_URL.get().unwrap().clone()
 }
 
 static SELF_URL: OnceLock<Url> = OnceLock::new();

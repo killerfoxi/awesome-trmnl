@@ -14,6 +14,7 @@ axum = { version = "0.8.1", default-features = false, features = [
     "http1",
     "http2",
     "macros",
+    "json",
 ] }
 tokio = { version = "1", default-features = false, features = [
     "rt-multi-thread",
@@ -44,7 +45,9 @@ iconify = "0.3.1"
 itertools = "0.14.0"
 clap = { version = "4.5.30", features = ["derive"] }
 tracing = "0.1.41"
-axum-server = { version = "0.7.1", default-features = false, features = ["tls-rustls"] }
+axum-server = { version = "0.7.1", default-features = false, features = [
+    "tls-rustls",
+] }
 pretty_env_logger = "0.5.0"
 rust-embed = { version = "8.5.0", features = ["axum", "mime_guess"] }
 mime_guess = "2.0.5"

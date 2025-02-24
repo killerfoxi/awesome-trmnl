@@ -1,7 +1,14 @@
-use crate::{device, error::Canonical, generator::Content, pages, storage};
+use crate::{
+    device,
+    error::Canonical,
+    generator::Content,
+    pages,
+    resource::{self, Resource},
+    storage,
+};
 
 use axum::{
-    Router,
+    Json, Router,
     extract::{FromRef, Path, State},
     response::{IntoResponse, Response},
     routing::get,
@@ -12,6 +19,7 @@ use itertools::Itertools;
 use log::{debug, error, info};
 use maud::{Markup, html};
 use rust_embed::Embed;
+use serde::Serialize;
 use std::{net::SocketAddr, sync::Arc};
 use tower_http::trace::TraceLayer;
 use url::Url;
@@ -53,6 +61,7 @@ pub(crate) async fn serve(
         .route("/screen/{id}", get(render_screen_img))
         .route("/preview/{id}", get(preview))
         .route("/assets/{*file}", get(embedded_assets))
+        .route("/api/display", get(api_display))
         .with_state(state);
     let app = if log_requests {
         app.layer(
@@ -116,6 +125,38 @@ fn determine_image_type(headers: header::HeaderMap) -> ImageType {
         })
         .flatten()
         .unwrap_or(ImageType::Png)
+}
+
+#[derive(Serialize)]
+pub(crate) struct ApiResponse {
+    image_url: String,
+    refresh_rate: u64,
+}
+
+#[axum::debug_handler]
+pub(crate) async fn api_display(
+    State(_storage): State<Arc<storage::Storage>>,
+    headers: http::header::HeaderMap,
+    device: device::Info,
+) -> axum::response::Result<axum::response::Json<ApiResponse>> {
+    let mut url = resource::self_url();
+    url.set_host(
+        headers
+            .get(http::header::HOST)
+            .map(|h| h.to_str())
+            .transpose()
+            .map_err(|_| Canonical::InvalidArgument)?,
+    )
+    .map_err(|_| Canonical::InvalidArgument)?;
+    Ok(Json(ApiResponse {
+        image_url: Resource::rendering(&device.id)
+            .into_remote(url)
+            .map_err(|_| Canonical::FailedPrecondition)?
+            .fully_qualified_url()
+            .as_str()
+            .to_owned(),
+        refresh_rate: 1800,
+    }))
 }
 
 #[axum::debug_handler]

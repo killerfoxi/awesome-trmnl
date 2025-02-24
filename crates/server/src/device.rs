@@ -4,6 +4,7 @@ use axum::{
     extract::{FromRef, FromRequestParts, Path},
     http::request::Parts,
 };
+use http::header;
 use url::Url;
 
 use crate::{error::Canonical, resource::Resource, storage};
@@ -22,9 +23,18 @@ where
     type Rejection = Canonical;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let Path(id) = Path::<String>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| Canonical::InvalidArgument)?;
+        let id = {
+            if let Some(id) = parts.headers.get("Access-Token") {
+                id.to_str()
+                    .map_err(|_| Canonical::InvalidArgument)?
+                    .to_owned()
+            } else {
+                let Path(id) = Path::<String>::from_request_parts(parts, state)
+                    .await
+                    .map_err(|_| Canonical::InvalidArgument)?;
+                id
+            }
+        };
 
         let storage = Arc::from_ref(state);
         storage
