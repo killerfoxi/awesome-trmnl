@@ -1,6 +1,7 @@
 use std::{collections::HashMap, pin::Pin, sync::Arc};
 
 use futures::future::BoxFuture;
+use weather::Detail;
 
 use crate::{generator, pages, storage};
 
@@ -17,6 +18,8 @@ pub enum PluginConfig {
     },
     Weather {
         location: String,
+        #[serde(default)]
+        detail: Detail,
     },
     TestScreen,
 }
@@ -51,8 +54,8 @@ impl Plugin {
                 project: project_id.into(),
             }),
             PluginConfig::TestScreen => Ok(Plugin::TestScreen),
-            PluginConfig::Weather { location } => Ok(Self::Weather {
-                client: weather::Client::new(location)
+            PluginConfig::Weather { location, detail } => Ok(Self::Weather {
+                client: weather::Client::new(location, detail)
                     .await
                     .map_err(|_| storage::LoadError::InvalidConfig)?,
             }),

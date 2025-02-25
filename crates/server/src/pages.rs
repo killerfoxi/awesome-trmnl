@@ -1,4 +1,4 @@
-use maud::{html, Markup, DOCTYPE};
+use maud::{DOCTYPE, Markup, html};
 
 pub fn index(inner: Markup) -> Markup {
     html! {
@@ -54,22 +54,6 @@ pub fn test_screen() -> Markup {
                 img .image src="https://usetrmnl.com/images/plugins/trmnl--render.svg";
                 span .title { "Plugin Title" }
                 span .instance { "Instance Title" }
-            }
-        }
-    }
-}
-
-pub fn empty_screen() -> Markup {
-    html! {
-        div ."view view--full" {
-            div .layout {
-                div .columns {
-                    div .column {
-                        div .markdown {
-                            span .title { "Nothing to render" }
-                        }
-                    }
-                }
             }
         }
     }

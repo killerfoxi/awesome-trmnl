@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use chrono::{DateTime, FixedOffset, NaiveDate};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
 use itertools::izip;
 use log::{debug, error};
 use maud::{Markup, PreEscaped, html};
@@ -8,7 +8,154 @@ use url::Url;
 
 use crate::generator;
 
-pub fn content(weather: &Weather) -> Markup {
+#[derive(serde::Deserialize, Default, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Detail {
+    Minimal,
+    #[default]
+    Full,
+}
+
+impl Detail {
+    pub fn produce(&self, weather: &Weather) -> Markup {
+        match self {
+            Self::Minimal => minimal_content(weather),
+            Self::Full => full_content(weather),
+        }
+    }
+}
+
+pub fn full_content(weather: &Weather) -> Markup {
+    html! {
+        div ."view view--full" {
+            div ."layout layout--col gap--space-between" {
+                div ."grid" {
+                    div ."row row--center col--span-3 col--end" {
+                        (weather.current.weather_code.as_img())
+                    }
+                    div ."col col--span-3 col--end" {
+                        div ."item h--full" {
+                            div ."meta" {}
+                            div ."content" {
+                                span ."value value--xxxlarge" data-fit-value="true" { (weather.current.temperature) "°" }
+                                span ."label w--full" {
+                                    (PreEscaped(iconify::svg!("wi:sunrise", width = "24px")))
+                                    (weather.daily[0].sunrise.format("%H:%M"))
+                                }
+                                span ."label w--full" {
+                                    (PreEscaped(iconify::svg!("wi:strong-wind", width = "24px")))
+                                    (weather.daily[0].wind_dir.as_img())
+                                    (weather.daily[0].wind_gusts)
+                                }
+                            }
+                        }
+                    }
+                    div ."col col--span-3 col--end gap--medium" {
+                        div ."item" {
+                            div ."meta" {}
+                            div ."icon" {
+                                (PreEscaped(iconify::svg!("wi:thermometer")))
+                            }
+                            div ."content" {
+                                span ."value value--small" { (weather.current.feels_like) "°" }
+                                span ."label" { "Feels like" }
+                            }
+                        }
+
+                        div ."item" {
+                            div ."meta" {}
+                            div ."icon" {
+                                (PreEscaped(iconify::svg!("wi:raindrops", width = "24px")))
+                            }
+                            div ."content" {
+                                span ."value value--small" { (weather.current.humidity) "%" }
+                                span ."label" { "Humidity" }
+                            }
+                        }
+
+                        div ."item" {
+                            div ."meta" {}
+                            div ."icon" {
+                                (weather.current.weather_code.as_img())
+                            }
+                            div ."content" {
+                                span ."value value--xsmall" { (weather.current.weather_code) }
+                                span ."label" { "Right now" }
+                            }
+                        }
+                    }
+                }
+
+                div ."w-full b-h-gray-5" {}
+
+                div ."grid" {
+                    div ."col gap--large" {
+                    @for (i, day) in weather.daily.iter().enumerate().take(2) {
+                        div ."grid" {
+                        div ."item col--span-3" {
+                            div ."meta" {}
+                            div ."icon" {
+                                (day.weather_code.as_img())
+                            }
+                            div ."content" {
+                            span ."value value--xsmall" { (day.weather_code) }
+                            span ."label" { @if i == 0 { "Today" } @else { "Tomorrow" } }
+                            }
+                        }
+
+                        div ."row col--span-3" {
+                            div ."item" {
+                                div ."meta" {}
+                                div ."row" {
+                                    div ."icon" {
+                                        (PreEscaped(iconify::svg!("wi:hot", width = "24px")))
+                                    }
+
+                                    div ."content w--14" {
+                                        span ."value value--xsmall" { (day.uv_index) }
+                                        span ."label" { "UV" }
+                                    }
+
+                                    div ."icon" style="margin-top: auto; margin-bottom: auto;" {
+                                        (PreEscaped(iconify::svg!("wi:raindrop", width = "24px")))
+                                    }
+
+                                    div ."content w--14" style="justify-content: center" {
+                                        span ."value value--xsmall" { "XX" "mm"}
+                                        span ."label" { "Rain amount"}
+                                    }
+                                }
+                            }
+                        }
+
+                        div ."row col--span-3" {
+                            div ."item" {
+                                div ."meta" {}
+                                div ."icon" {
+                                    (PreEscaped(iconify::svg!("wi:thermometer", width = "24px")))
+                                }
+                                div ."row" {
+                                    div ."content w--20" {
+                                        span ."value value--small" { (day.temperatures.min()) "°"}
+                                        span ."label" { "Min" }
+                                    }
+                                    div ."content w--20" {
+                                        span ."value value--small" { (day.temperatures.max()) "°"}
+                                        span ."label" { "Max" }
+                                    }
+                                }
+                            }
+                        }
+                        }
+                    }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn minimal_content(weather: &Weather) -> Markup {
     html! {
         div ."layout layout--col gap--space-between" {
             div {
@@ -90,7 +237,9 @@ pub enum WeatherCode {
 impl WeatherCode {
     pub fn as_img(&self) -> Markup {
         match self {
-            WeatherCode::Unclear => todo!(),
+            WeatherCode::Unclear => {
+                html! { (PreEscaped(iconify::svg!("wi:stars", width = "96px")))}
+            }
             WeatherCode::Clear => {
                 html! { (PreEscaped(iconify::svg!("wi:day-sunny", width = "96px"))) }
             }
@@ -135,12 +284,36 @@ impl From<u8> for WeatherCode {
             51 => Self::DrizzleLight,
             53 => Self::DrizzleModerate,
             55 => Self::DrizzleDense,
-            61 => Self::RainSlight,
-            63 => Self::RainModerate,
-            65 => Self::RainHeavy,
+            61 | 80 | 85 => Self::RainSlight,
+            63 | 81 => Self::RainModerate,
+            65 | 82 | 86 => Self::RainHeavy,
             95 => Self::Thunderstorm,
             _ => Self::Unclear,
         }
+    }
+}
+
+impl Display for WeatherCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Clear => "Sunny",
+                Self::MostlyClear => "Mostly Sunny",
+                Self::PartlyCloudy => "Partially Cloudy",
+                Self::Overcast => "Overcast",
+                Self::Fog => "Foggy",
+                Self::DrizzleLight => "Light Drizzle",
+                Self::DrizzleModerate => "Moderate Drizzle",
+                Self::DrizzleDense => "Dense Drizzle",
+                Self::RainSlight => "Light Rain",
+                Self::RainModerate => "Moderate Rain",
+                Self::RainHeavy => "Heavy Rain",
+                Self::Thunderstorm => "Thunderstorm",
+                Self::Unclear => "Unclear",
+            }
+        )
     }
 }
 
@@ -216,9 +389,69 @@ impl From<u8> for Humidity {
     }
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(from = "u16")]
+pub enum WindDirection {
+    NorthWest,
+    North,
+    NorthEast,
+    East,
+    SouthEast,
+    South,
+    SouthWest,
+    West,
+}
+
+impl From<u16> for WindDirection {
+    fn from(value: u16) -> Self {
+        match value {
+            20..70 => Self::NorthEast,
+            70..110 => Self::East,
+            110..160 => Self::SouthEast,
+            160..200 => Self::South,
+            200..250 => Self::SouthWest,
+            250..290 => Self::West,
+            290..340 => Self::NorthWest,
+            _ => Self::North,
+        }
+    }
+}
+
+impl WindDirection {
+    pub fn as_img(&self) -> Markup {
+        match self {
+            WindDirection::NorthWest => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-up-left", width = "24px"))) }
+            }
+            WindDirection::North => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-up", width = "24px"))) }
+            }
+            WindDirection::NorthEast => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-up-right", width = "24px"))) }
+            }
+            WindDirection::East => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-right", width = "24px"))) }
+            }
+            WindDirection::SouthEast => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-down-right", width = "24px"))) }
+            }
+            WindDirection::South => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-down", width = "24px"))) }
+            }
+            WindDirection::SouthWest => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-down-left", width = "24px"))) }
+            }
+            WindDirection::West => {
+                html! { (PreEscaped(iconify::svg!("wi:direction-left", width = "24px"))) }
+            }
+        }
+    }
+}
+
 pub struct CurrentForecast {
     pub time: DateTime<FixedOffset>,
     pub temperature: Temperature,
+    pub feels_like: Temperature,
     pub humidity: Humidity,
     pub weather_code: WeatherCode,
 }
@@ -227,6 +460,11 @@ pub struct DailyForecast {
     pub date: NaiveDate,
     pub temperatures: TemperatureRange,
     pub weather_code: WeatherCode,
+    pub sunrise: NaiveDateTime,
+    pub uv_index: f64,
+    pub wind_speed: f64,
+    pub wind_gusts: f64,
+    pub wind_dir: WindDirection,
 }
 
 #[derive(serde::Deserialize)]
@@ -257,6 +495,7 @@ impl TryFrom<intermediate::Weather> for Weather {
                     .latest()
                     .ok_or(ConvertError)?,
                 temperature: current.temperature.into(),
+                feels_like: current.feels_like.into(),
                 humidity: current.humidity.into(),
                 weather_code: current.weather_code,
             },
@@ -264,29 +503,64 @@ impl TryFrom<intermediate::Weather> for Weather {
                 daily.time,
                 daily.temperature_max,
                 daily.temperature_min,
-                daily.weather_code
+                daily.weather_code,
+                daily.sunrise,
+                daily.uv_index,
+                daily.wind_speeds,
+                daily.wind_gusts,
+                daily.wind_dirs,
             )
-            .map(|(time, tmax, tmin, wc)| DailyForecast {
-                date: time,
-                temperatures: TemperatureRange::new(tmin.into(), tmax.into()),
-                weather_code: wc,
-            })
+            .map(
+                |(time, tmax, tmin, wc, sunrise, uv_index, wind_speed, wind_gusts, wind_dir)| {
+                    DailyForecast {
+                        date: time,
+                        temperatures: TemperatureRange::new(tmin.into(), tmax.into()),
+                        weather_code: wc,
+                        sunrise: sunrise.into_inner(),
+                        uv_index,
+                        wind_speed,
+                        wind_gusts,
+                        wind_dir,
+                    }
+                },
+            )
             .collect(),
         })
     }
 }
 
 mod intermediate {
+    use std::ops::Deref;
+
     use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
 
-    use super::WeatherCode;
+    use super::{WeatherCode, WindDirection};
+
+    #[derive(serde::Deserialize)]
+    #[serde(transparent)]
+    pub struct DayAndTime(#[serde(with = "super::incomplete_iso8601")] NaiveDateTime);
+
+    impl DayAndTime {
+        pub fn into_inner(self) -> NaiveDateTime {
+            self.0
+        }
+    }
+
+    impl Deref for DayAndTime {
+        type Target = NaiveDateTime;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
 
     #[derive(serde::Deserialize)]
     pub struct CurrentForecast {
-        #[serde(with = "super::incomplete_iso8601")]
-        pub time: NaiveDateTime,
+        pub time: DayAndTime,
         #[serde(rename = "temperature_2m")]
         pub temperature: f64,
+        #[serde(rename = "apparent_temperature")]
+        pub feels_like: f64,
         #[serde(rename = "relative_humidity_2m")]
         pub humidity: u8,
         pub weather_code: WeatherCode,
@@ -299,6 +573,15 @@ mod intermediate {
         pub temperature_max: Vec<f64>,
         #[serde(rename = "temperature_2m_min")]
         pub temperature_min: Vec<f64>,
+        pub sunrise: Vec<DayAndTime>,
+        #[serde(rename = "uv_index_max")]
+        pub uv_index: Vec<f64>,
+        #[serde(rename = "wind_speed_10m_max")]
+        pub wind_speeds: Vec<f64>,
+        #[serde(rename = "wind_gusts_10m_max")]
+        pub wind_gusts: Vec<f64>,
+        #[serde(rename = "wind_direction_10m_dominant")]
+        pub wind_dirs: Vec<WindDirection>,
         pub weather_code: Vec<WeatherCode>,
     }
 
@@ -312,18 +595,19 @@ mod intermediate {
 }
 
 pub struct Client {
+    detail: Detail,
     url: Url,
 }
 
 impl Client {
-    pub async fn new(location: impl AsRef<str>) -> Result<Self, Error> {
+    pub async fn new(location: impl AsRef<str>, detail: Detail) -> Result<Self, Error> {
         let mut url = Url::parse("https://api.open-meteo.com/v1/forecast").unwrap();
         let coords = geolocation::resolve(location).await?;
         url.query_pairs_mut()
             .clear()
             .append_pair("longitude", &format!("{:.2}", coords.0))
             .append_pair("latitude", &format!("{:.2}", coords.1));
-        Ok(Self { url })
+        Ok(Self { url, detail })
     }
 
     pub async fn fetch(&self) -> Result<Weather, reqwest::Error> {
@@ -331,11 +615,11 @@ impl Client {
         url.query_pairs_mut()
             .append_pair(
                 "current",
-                "temperature_2m,relative_humidity_2m,weather_code",
+                "temperature_2m,relative_humidity_2m,weather_code,apparent_temperature,precipitation,rain,wind_speed_10m",
             )
             .append_pair(
                 "daily",
-                "weather_code,temperature_2m_max,temperature_2m_min",
+                "weather_code,temperature_2m_max,temperature_2m_min,sunrise,uv_index_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant",
             )
             .append_pair("forecast_days", "3");
         reqwest::get(url)
@@ -350,7 +634,7 @@ impl Client {
             .fetch()
             .await
             .inspect_err(|e| error!("In weather data body: {e}"))?;
-        Ok(content(&weather))
+        Ok(self.detail.produce(&weather))
     }
 }
 

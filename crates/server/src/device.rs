@@ -4,7 +4,6 @@ use axum::{
     extract::{FromRef, FromRequestParts, Path},
     http::request::Parts,
 };
-use http::header;
 use url::Url;
 
 use crate::{error::Canonical, resource::Resource, storage};
