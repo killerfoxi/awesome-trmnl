@@ -1,6 +1,5 @@
 [Unit]
 Description="Awesome TRMNL Server"
-After=network.target
 
 [Service]
 Type=exec
