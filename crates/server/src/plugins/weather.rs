@@ -595,8 +595,8 @@ mod intermediate {
 }
 
 pub struct Client {
-    detail: Detail,
     url: Url,
+    detail: Detail,
 }
 
 impl Client {

@@ -1,4 +1,6 @@
 #![warn(tail_expr_drop_order)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::too_many_lines)]
 
 use std::{
     net::{Ipv6Addr, SocketAddr},

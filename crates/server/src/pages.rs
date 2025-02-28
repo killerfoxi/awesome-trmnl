@@ -1,6 +1,8 @@
+use std::borrow::Borrow;
+
 use maud::{DOCTYPE, Markup, html};
 
-pub fn index(inner: Markup) -> Markup {
+pub fn index(inner: impl Borrow<Markup>) -> Markup {
     html! {
         (DOCTYPE)
         head {
@@ -8,7 +10,7 @@ pub fn index(inner: Markup) -> Markup {
             link rel="stylesheet" href="/assets/style.css";
         }
         body {
-            (inner)
+            (inner.borrow())
         }
     }
 }
@@ -59,7 +61,7 @@ pub fn test_screen() -> Markup {
     }
 }
 
-pub fn screen(inner: Markup) -> Markup {
+pub fn screen(inner: impl Borrow<Markup>) -> Markup {
     html! {
         (DOCTYPE)
         head {
@@ -72,7 +74,7 @@ pub fn screen(inner: Markup) -> Markup {
         }
         body .environment.trmnl {
             div .screen {
-                (inner)
+                (inner.borrow())
             }
         }
     }

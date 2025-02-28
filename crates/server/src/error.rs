@@ -75,6 +75,7 @@ impl IntoCanonical for blender::Error {
     fn into_canonical(self) -> Canonical {
         match self {
             blender::Error::Setup(_)
+            | blender::Error::Other(_)
             | blender::Error::CouldNotCreateContext
             | blender::Error::InternalRender(_)
             | blender::Error::InvalidUrl(_)

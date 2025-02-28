@@ -1,4 +1,6 @@
 #![warn(tail_expr_drop_order)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::missing_errors_doc)]
 
 use std::{
     io::{Seek, Write},
@@ -24,11 +26,18 @@ pub enum Error {
     InvalidUrl(url::ParseError),
     NotFound,
     Image,
+    Other(String),
 }
 
 impl From<image::ImageError> for Error {
     fn from(_: image::ImageError) -> Self {
         Self::Image
+    }
+}
+
+impl From<String> for Error {
+    fn from(value: String) -> Self {
+        Self::Other(value)
     }
 }
 
@@ -48,6 +57,7 @@ pub struct RenderedImage {
 }
 
 impl RenderedImage {
+    #[must_use]
     pub fn into_grayscaled(self) -> Self {
         Self {
             inner: self.inner.grayscale(),
@@ -66,6 +76,7 @@ impl RenderedImage {
             .inspect_err(|e| error!("Could not write image: {e:?}"))?)
     }
 
+    #[must_use]
     pub fn byte_size(&self) -> usize {
         self.inner.as_bytes().len()
     }
@@ -118,8 +129,7 @@ impl Instance {
                 CreateTargetParams::builder()
                     .url(url)
                     .browser_context_id(context.clone())
-                    .build()
-                    .unwrap(),
+                    .build()?,
             )
             .await?;
         tokio::time::sleep(Duration::from_millis(1300)).await;

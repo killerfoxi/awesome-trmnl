@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::OnceLock};
+use std::{borrow::Borrow, str::FromStr, sync::OnceLock};
 
 use url::Url;
 
@@ -23,10 +23,12 @@ impl Resource {
         Self::Local(format!("local:/screen/{id}").parse().unwrap())
     }
 
-    pub fn into_remote(self, base: Url) -> Result<Resource, Error> {
+    pub fn into_remote(self, base: impl Borrow<Url>) -> Result<Resource, Error> {
         match self {
             Resource::Local(url) => Ok(Self::Remote(
-                base.join(url.path()).map_err(|_| Error::InvalidFormat)?,
+                base.borrow()
+                    .join(url.path())
+                    .map_err(|_| Error::InvalidFormat)?,
             )),
             Resource::Remote(url) => Ok(Self::Remote(url)),
         }
@@ -52,7 +54,7 @@ impl FromStr for Resource {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let url: Url = {
-            if s.starts_with("/") {
+            if s.starts_with('/') {
                 format!("local:{s}").parse()
             } else {
                 s.parse()

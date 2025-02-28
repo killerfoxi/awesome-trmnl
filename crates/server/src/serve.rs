@@ -67,13 +67,13 @@ pub(crate) async fn serve(
         app.layer(
             TraceLayer::new_for_http()
                 .on_request(|req: &axum::extract::Request, _span: &tracing::Span| {
-                    info!("{:?} {}: {:#?}", req.version(), req.uri(), req.headers())
+                    info!("{:?} {}: {:#?}", req.version(), req.uri(), req.headers());
                 })
                 .on_response(
                     |resp: &axum::response::Response,
                      _duration: std::time::Duration,
                      _span: &tracing::Span| {
-                        info!("Responding: {}; {:#?}", resp.status(), resp.headers())
+                        info!("Responding: {}; {:#?}", resp.status(), resp.headers());
                     },
                 ),
         )
@@ -112,7 +112,7 @@ async fn render_screen(
     Ok(([(header::CONTENT_TYPE, image_type.content_type())], data))
 }
 
-fn determine_image_type(headers: header::HeaderMap) -> ImageType {
+fn determine_image_type(headers: &header::HeaderMap) -> ImageType {
     headers
         .get(http::header::ACCEPT)
         .and_then(|a| {
@@ -168,7 +168,7 @@ async fn render_screen_img(
     render_screen(
         &server.renderer,
         device.content_url,
-        determine_image_type(headers),
+        determine_image_type(&headers),
     )
     .await
     .inspect_err(|e| error!("Failed to render image: {e:?}"))

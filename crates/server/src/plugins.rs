@@ -73,7 +73,7 @@ impl generator::Content for Plugin {
                 client
                     .fetch_and_display(project.clone())
                     .await
-                    .map_err(|e| e.into())
+                    .map_err(std::convert::Into::into)
             }),
             Plugin::Weather { client } => Box::pin(async { client.fetch_and_display().await }),
         }
