@@ -1,11 +1,4 @@
-use crate::{
-    device,
-    error::Canonical,
-    generator::Content,
-    pages,
-    resource::{self, Resource},
-    storage,
-};
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     Json, Router,
@@ -20,9 +13,17 @@ use log::{debug, error, info};
 use maud::{Markup, html};
 use rust_embed::Embed;
 use serde::Serialize;
-use std::{net::SocketAddr, sync::Arc};
 use tower_http::trace::TraceLayer;
 use url::Url;
+
+use crate::{
+    device,
+    error::Canonical,
+    generator::Content,
+    pages,
+    resource::{self, Resource},
+    storage,
+};
 
 enum ImageType {
     Png,
@@ -30,19 +31,19 @@ enum ImageType {
 }
 
 impl ImageType {
-    fn content_type(&self) -> &'static str {
+    const fn content_type(&self) -> &'static str {
         match self {
-            ImageType::Png => "image/png",
-            ImageType::Qoi => "image/qoi",
+            Self::Png => "image/png",
+            Self::Qoi => "image/qoi",
         }
     }
 }
 
-pub(crate) async fn embedded_assets(Path(file): Path<String>) -> impl IntoResponse {
+pub async fn embedded_assets(Path(file): Path<String>) -> impl IntoResponse {
     EmbededFile(file)
 }
 
-pub(crate) async fn serve(
+pub async fn serve(
     addr: SocketAddr,
     tls: Option<RustlsConfig>,
     state: ServerState,
@@ -128,13 +129,13 @@ fn determine_image_type(headers: &header::HeaderMap) -> ImageType {
 }
 
 #[derive(Serialize)]
-pub(crate) struct ApiResponse {
+pub struct ApiResponse {
     image_url: String,
     refresh_rate: u64,
 }
 
 #[axum::debug_handler]
-pub(crate) async fn api_display(
+pub async fn api_display(
     State(_storage): State<Arc<storage::Storage>>,
     headers: http::header::HeaderMap,
     device: device::Info,

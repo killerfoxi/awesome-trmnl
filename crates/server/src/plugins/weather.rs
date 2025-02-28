@@ -203,9 +203,9 @@ pub enum Error {
 impl From<geolocation::Error> for Error {
     fn from(value: geolocation::Error) -> Self {
         match value {
-            geolocation::Error::Request => Error::Request,
-            geolocation::Error::Geo => Error::Geo,
-            geolocation::Error::NotFound => Error::NotFound,
+            geolocation::Error::Request => Self::Request,
+            geolocation::Error::Geo => Self::Geo,
+            geolocation::Error::NotFound => Self::NotFound,
         }
     }
 }
@@ -237,36 +237,34 @@ pub enum WeatherCode {
 impl WeatherCode {
     pub fn as_img(&self) -> Markup {
         match self {
-            WeatherCode::Unclear => {
+            Self::Unclear => {
                 html! { (PreEscaped(iconify::svg!("wi:stars", width = "96px")))}
             }
-            WeatherCode::Clear => {
+            Self::Clear => {
                 html! { (PreEscaped(iconify::svg!("wi:day-sunny", width = "96px"))) }
             }
-            WeatherCode::MostlyClear => {
+            Self::MostlyClear => {
                 html! { (PreEscaped(iconify::svg!("wi:day-sunny-overcast", width = "96px"))) }
             }
-            WeatherCode::PartlyCloudy => {
+            Self::PartlyCloudy => {
                 html! { (PreEscaped(iconify::svg!("wi:day-cloudy", width = "96px"))) }
             }
-            WeatherCode::Overcast => {
+            Self::Overcast => {
                 html! { (PreEscaped(iconify::svg!("wi:cloudy", width =  "96px"))) }
             }
-            WeatherCode::Fog => {
+            Self::Fog => {
                 html! { (PreEscaped(iconify::svg!("wi:day-fog", width = "96px"))) }
             }
-            WeatherCode::DrizzleLight
-            | WeatherCode::DrizzleModerate
-            | WeatherCode::DrizzleDense => {
+            Self::DrizzleLight | Self::DrizzleModerate | Self::DrizzleDense => {
                 html! { (PreEscaped(iconify::svg!("wi:day-sprinkle", width = "96px"))) }
             }
-            WeatherCode::RainSlight | WeatherCode::RainModerate => {
+            Self::RainSlight | Self::RainModerate => {
                 html! { (PreEscaped(iconify::svg!("wi:day-rain", width = "96px"))) }
             }
-            WeatherCode::RainHeavy => {
+            Self::RainHeavy => {
                 html! { (PreEscaped(iconify::svg!("wi:day-showers", width = "96px"))) }
             }
-            WeatherCode::Thunderstorm => {
+            Self::Thunderstorm => {
                 html! { (PreEscaped(iconify::svg!("wi:day-thunderstorm", width = "96px"))) }
             }
         }
@@ -341,7 +339,7 @@ mod utc_offset {
         D: Deserializer<'de>,
     {
         let offset = i32::deserialize(deserializer)?;
-        FixedOffset::east_opt(offset).ok_or(serde::de::Error::custom("Invalid offset"))
+        FixedOffset::east_opt(offset).ok_or_else(|| serde::de::Error::custom("Invalid offset"))
     }
 }
 
@@ -362,15 +360,15 @@ impl From<f64> for Temperature {
 pub struct TemperatureRange(Temperature, Temperature);
 
 impl TemperatureRange {
-    pub fn new(low: Temperature, high: Temperature) -> Self {
+    pub const fn new(low: Temperature, high: Temperature) -> Self {
         Self(low, high)
     }
 
-    pub fn min(&self) -> &Temperature {
+    pub const fn min(&self) -> &Temperature {
         &self.0
     }
 
-    pub fn max(&self) -> &Temperature {
+    pub const fn max(&self) -> &Temperature {
         &self.1
     }
 }
@@ -420,28 +418,28 @@ impl From<u16> for WindDirection {
 impl WindDirection {
     pub fn as_img(&self) -> Markup {
         match self {
-            WindDirection::NorthWest => {
+            Self::NorthWest => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-up-left", width = "24px"))) }
             }
-            WindDirection::North => {
+            Self::North => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-up", width = "24px"))) }
             }
-            WindDirection::NorthEast => {
+            Self::NorthEast => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-up-right", width = "24px"))) }
             }
-            WindDirection::East => {
+            Self::East => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-right", width = "24px"))) }
             }
-            WindDirection::SouthEast => {
+            Self::SouthEast => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-down-right", width = "24px"))) }
             }
-            WindDirection::South => {
+            Self::South => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-down", width = "24px"))) }
             }
-            WindDirection::SouthWest => {
+            Self::SouthWest => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-down-left", width = "24px"))) }
             }
-            WindDirection::West => {
+            Self::West => {
                 html! { (PreEscaped(iconify::svg!("wi:direction-left", width = "24px"))) }
             }
         }
@@ -541,7 +539,7 @@ mod intermediate {
     pub struct DayAndTime(#[serde(with = "super::incomplete_iso8601")] NaiveDateTime);
 
     impl DayAndTime {
-        pub fn into_inner(self) -> NaiveDateTime {
+        pub const fn into_inner(self) -> NaiveDateTime {
             self.0
         }
     }

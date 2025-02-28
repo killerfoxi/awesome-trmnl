@@ -23,9 +23,10 @@ pub enum Error {
     Unknown,
 }
 
+#[allow(clippy::fallible_impl_from, reason = "we know it's a status")]
 impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
-        let target = err.url().map_or(String::default(), ToString::to_string);
+        let target = err.url().map_or_else(String::default, ToString::to_string);
         if err.is_status() {
             Self::Fetch {
                 kind: FetchErrorKind::Request(err.status().unwrap()),
@@ -55,7 +56,7 @@ impl From<reqwest::Error> for Error {
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         match self {
-            Error::Fetch { kind, target } => match kind {
+            Self::Fetch { kind, target } => match kind {
                 FetchErrorKind::Request(status_code) => (
                     StatusCode::BAD_GATEWAY,
                     pages::error(
@@ -85,14 +86,14 @@ impl IntoResponse for Error {
                     ),
                 ),
             },
-            Error::Misconfigured => (
+            Self::Misconfigured => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 pages::error(
                     "Misconfigured plugin",
                     "The plugin can't produce content because it's misconfigured.",
                 ),
             ),
-            Error::Unknown => (
+            Self::Unknown => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 pages::internal_error("It's unclear what happened, but it was not good."),
             ),
@@ -109,7 +110,7 @@ pub enum SetupError {
 impl IntoResponse for SetupError {
     fn into_response(self) -> axum::response::Response {
         match self {
-            SetupError::Missing => (
+            Self::Missing => (
                 StatusCode::BAD_REQUEST,
                 pages::error(
                     "Setup for content incomplete",

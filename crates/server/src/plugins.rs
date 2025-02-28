@@ -27,9 +27,9 @@ pub enum PluginConfig {
 impl PluginConfig {
     pub fn to_key(&self) -> String {
         match self {
-            PluginConfig::Ticktick { .. } => String::from("ticktick"),
-            PluginConfig::TestScreen => String::from("test"),
-            PluginConfig::Weather { .. } => String::from("weather"),
+            Self::Ticktick { .. } => String::from("ticktick"),
+            Self::TestScreen => String::from("test"),
+            Self::Weather { .. } => String::from("weather"),
         }
     }
 }
@@ -53,7 +53,7 @@ impl Plugin {
                     .map_err(|_| storage::LoadError::InvalidConfig)?,
                 project: project_id.into(),
             }),
-            PluginConfig::TestScreen => Ok(Plugin::TestScreen),
+            PluginConfig::TestScreen => Ok(Self::TestScreen),
             PluginConfig::Weather { location, detail } => Ok(Self::Weather {
                 client: weather::Client::new(location, detail)
                     .await
@@ -68,14 +68,14 @@ pub type PluginsMap = HashMap<String, Pin<Arc<Plugin>>>;
 impl generator::Content for Plugin {
     fn generate(&self) -> BoxFuture<'_, Result<maud::Markup, generator::Error>> {
         match self {
-            Plugin::TestScreen => Box::pin(async { Ok(pages::test_screen()) }),
-            Plugin::Ticktick { client, project } => Box::pin(async {
+            Self::TestScreen => Box::pin(async { Ok(pages::test_screen()) }),
+            Self::Ticktick { client, project } => Box::pin(async {
                 client
                     .fetch_and_display(project.clone())
                     .await
                     .map_err(std::convert::Into::into)
             }),
-            Plugin::Weather { client } => Box::pin(async { client.fetch_and_display().await }),
+            Self::Weather { client } => Box::pin(async { client.fetch_and_display().await }),
         }
     }
 }

@@ -15,22 +15,22 @@ pub enum Resource {
 }
 
 impl Resource {
-    pub fn self_hosted_content(id: &str) -> Resource {
+    pub fn self_hosted_content(id: &str) -> Self {
         Self::Local(format!("local:/content/{id}").parse().unwrap())
     }
 
-    pub fn rendering(id: &str) -> Resource {
+    pub fn rendering(id: &str) -> Self {
         Self::Local(format!("local:/screen/{id}").parse().unwrap())
     }
 
-    pub fn into_remote(self, base: impl Borrow<Url>) -> Result<Resource, Error> {
+    pub fn into_remote(self, base: impl Borrow<Url>) -> Result<Self, Error> {
         match self {
-            Resource::Local(url) => Ok(Self::Remote(
+            Self::Local(url) => Ok(Self::Remote(
                 base.borrow()
                     .join(url.path())
                     .map_err(|_| Error::InvalidFormat)?,
             )),
-            Resource::Remote(url) => Ok(Self::Remote(url)),
+            Self::Remote(url) => Ok(Self::Remote(url)),
         }
     }
 
@@ -62,8 +62,8 @@ impl FromStr for Resource {
             .map_err(|_| Error::InvalidFormat)?
         };
         match url.scheme() {
-            "http" | "https" => Ok(Resource::Remote(url)),
-            "local" => Ok(Resource::Local(url)),
+            "http" | "https" => Ok(Self::Remote(url)),
+            "local" => Ok(Self::Local(url)),
             _ => Err(Error::Unsupported),
         }
     }

@@ -28,15 +28,15 @@ impl std::fmt::Debug for Mashup {
 impl generator::Content for Mashup {
     fn generate(&self) -> futures::future::BoxFuture<'_, Result<maud::Markup, generator::Error>> {
         match self {
-            Mashup::None(_) => panic!("Can't generate content for remotes"),
-            Mashup::Single(p) => Box::pin(async {
+            Self::None(_) => panic!("Can't generate content for remotes"),
+            Self::Single(p) => Box::pin(async {
                 Ok(html! {
                     div ."view view--full" {
                         (p.generate().await?)
                     }
                 })
             }),
-            Mashup::LeftRight { left, right } => Box::pin(async {
+            Self::LeftRight { left, right } => Box::pin(async {
                 Ok(html! {
                     div ."mashup mashup--1Lx1R" {
                         div ."view view--half_vertical" {

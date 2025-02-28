@@ -2,8 +2,8 @@ use std::{ops::Deref, time::Duration};
 
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
-use maud::{html, Markup};
-use reqwest::{header, redirect, StatusCode};
+use maud::{Markup, html};
+use reqwest::{StatusCode, header, redirect};
 use url::Url;
 
 use crate::generator;
@@ -25,6 +25,7 @@ pub enum FetchErrorKind {
     Other,
 }
 
+#[allow(clippy::fallible_impl_from, reason = "we know it's a status")]
 impl From<reqwest::Error> for FetchErrorKind {
     fn from(err: reqwest::Error) -> Self {
         if err.is_connect() {
@@ -66,37 +67,37 @@ impl From<FetchError> for generator::Error {
         let target = err
             .target
             .as_ref()
-            .map_or(String::default(), ToString::to_string);
+            .map_or_else(String::default, ToString::to_string);
         match err.kind {
-            FetchErrorKind::Timeout => generator::Error::Fetch {
+            FetchErrorKind::Timeout => Self::Fetch {
                 kind: generator::FetchErrorKind::Timeout,
                 target,
             },
-            FetchErrorKind::Connection => generator::Error::Fetch {
+            FetchErrorKind::Connection => Self::Fetch {
                 kind: generator::FetchErrorKind::Network,
                 target,
             },
-            FetchErrorKind::InvalidRequest => generator::Error::Fetch {
+            FetchErrorKind::InvalidRequest => Self::Fetch {
                 kind: generator::FetchErrorKind::Request(StatusCode::BAD_REQUEST),
                 target,
             },
-            FetchErrorKind::PermissionDenied => generator::Error::Fetch {
+            FetchErrorKind::PermissionDenied => Self::Fetch {
                 kind: generator::FetchErrorKind::Request(StatusCode::FORBIDDEN),
                 target,
             },
-            FetchErrorKind::NotFound => generator::Error::Fetch {
+            FetchErrorKind::NotFound => Self::Fetch {
                 kind: generator::FetchErrorKind::Request(StatusCode::NOT_FOUND),
                 target,
             },
-            FetchErrorKind::Unauthenticated => generator::Error::Fetch {
+            FetchErrorKind::Unauthenticated => Self::Fetch {
                 kind: generator::FetchErrorKind::Request(StatusCode::UNAUTHORIZED),
                 target,
             },
-            FetchErrorKind::Json => generator::Error::Fetch {
+            FetchErrorKind::Json => Self::Fetch {
                 kind: generator::FetchErrorKind::InvalidData,
                 target,
             },
-            FetchErrorKind::Other => generator::Error::Unknown,
+            FetchErrorKind::Other => Self::Unknown,
         }
     }
 }
@@ -134,7 +135,7 @@ pub struct Auth {
 
 impl From<String> for Auth {
     fn from(value: String) -> Self {
-        Auth {
+        Self {
             token: value,
             expires: None,
         }
@@ -143,7 +144,7 @@ impl From<String> for Auth {
 
 impl From<&str> for Auth {
     fn from(value: &str) -> Self {
-        Auth::from(value.to_owned())
+        Self::from(value.to_owned())
     }
 }
 
@@ -242,7 +243,7 @@ impl From<i32> for Priority {
 }
 
 impl Priority {
-    pub fn icon(&self) -> &str {
+    pub const fn icon(&self) -> &str {
         match self {
             Self::Medium => "iconoir-priority-medium",
             Self::High => "iconoir-priority-high",

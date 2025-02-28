@@ -57,7 +57,7 @@ mod ondisk {
     use log::error;
     use url::Url;
 
-    use crate::plugins::{self, mashup::Mashup, PluginsMap};
+    use crate::plugins::{self, PluginsMap, mashup::Mashup};
 
     #[derive(Debug)]
     pub enum Error {
@@ -69,11 +69,11 @@ mod ondisk {
     impl std::fmt::Display for Error {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Error::NotFound => write!(f, "The device file was not found"),
-                Error::InvalidConfig => {
+                Self::NotFound => write!(f, "The device file was not found"),
+                Self::InvalidConfig => {
                     write!(f, "The device file was loaded, but contained invalid data.")
                 }
-                Error::LoadConfig(error) => write!(f, "{error}"),
+                Self::LoadConfig(error) => write!(f, "{error}"),
             }
         }
     }
@@ -98,9 +98,9 @@ mod ondisk {
     impl MashupSpec {
         pub fn into_resolved_mashup(self, plugins: &plugins::PluginsMap) -> Mashup {
             match self {
-                MashupSpec::None(url) => Mashup::None(url),
-                MashupSpec::Single(source) => Mashup::Single(source.resolve(plugins).unwrap()),
-                MashupSpec::LeftRight { left, right } => Mashup::LeftRight {
+                Self::None(url) => Mashup::None(url),
+                Self::Single(source) => Mashup::Single(source.resolve(plugins).unwrap()),
+                Self::LeftRight { left, right } => Mashup::LeftRight {
                     left: left.resolve(plugins).unwrap(),
                     right: right.resolve(plugins).unwrap(),
                 },
@@ -129,10 +129,9 @@ mod ondisk {
     }
 
     pub async fn load_local(path: Option<PathBuf>) -> Result<HashMap<String, Device>, Error> {
-        let cfg = fs::read_to_string(path.unwrap_or(PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/devices.toml"
-        ))))
+        let cfg = fs::read_to_string(path.unwrap_or_else(|| {
+            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/devices.toml"))
+        }))
         .map_err(|_| Error::NotFound)?;
         let toml: HashMap<String, DeviceConfig> = toml::from_str(&cfg)
             .inspect_err(|e| error!("{e}"))

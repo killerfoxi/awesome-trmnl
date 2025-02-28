@@ -1,5 +1,5 @@
 #![warn(tail_expr_drop_order)]
-#![warn(clippy::pedantic)]
+#![warn(clippy::pedantic, clippy::nursery)]
 #![allow(clippy::too_many_lines)]
 
 use std::{

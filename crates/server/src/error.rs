@@ -34,35 +34,35 @@ where
 impl IntoResponse for Canonical {
     fn into_response(self) -> Response<Body> {
         match self {
-            Canonical::AlreadyExists => (
+            Self::AlreadyExists => (
                 StatusCode::CONFLICT,
                 pages::error("Conflicting", "The resource already exists."),
             ),
-            Canonical::NotFound => (
+            Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 pages::not_found("The requested resource does not exist."),
             ),
-            Canonical::PermissionDenied => (
+            Self::PermissionDenied => (
                 StatusCode::FORBIDDEN,
                 pages::error("Nope. Can't do", "The resource is inaccessible."),
             ),
-            Canonical::InvalidArgument => (
+            Self::InvalidArgument => (
                 StatusCode::BAD_REQUEST,
                 pages::bad_request("Well be better next time."),
             ),
-            Canonical::FailedPrecondition => (
+            Self::FailedPrecondition => (
                 StatusCode::PRECONDITION_FAILED,
                 pages::error("A failed precondition", "huh."),
             ),
-            Canonical::DeadlineExceeded => (
+            Self::DeadlineExceeded => (
                 StatusCode::GATEWAY_TIMEOUT,
                 pages::error("Sooo slow", "Did not receive a response in time."),
             ),
-            Canonical::Internal => (
+            Self::Internal => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 pages::internal_error("Well that's awkward."),
             ),
-            Canonical::Unknown => (
+            Self::Unknown => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 pages::internal_error("This is new for me too!"),
             ),
@@ -74,13 +74,13 @@ impl IntoResponse for Canonical {
 impl IntoCanonical for blender::Error {
     fn into_canonical(self) -> Canonical {
         match self {
-            blender::Error::Setup(_)
-            | blender::Error::Other(_)
-            | blender::Error::CouldNotCreateContext
-            | blender::Error::InternalRender(_)
-            | blender::Error::InvalidUrl(_)
-            | blender::Error::Image => Canonical::Internal,
-            blender::Error::NotFound => Canonical::NotFound,
+            Self::Setup(_)
+            | Self::Other(_)
+            | Self::CouldNotCreateContext
+            | Self::InternalRender(_)
+            | Self::InvalidUrl(_)
+            | Self::Image => Canonical::Internal,
+            Self::NotFound => Canonical::NotFound,
         }
     }
 }

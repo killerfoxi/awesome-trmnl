@@ -38,7 +38,7 @@ where
         let storage = Arc::from_ref(state);
         storage
             .device_by_id(&id)
-            .map(|d| Info {
+            .map(|d| Self {
                 id: d.id,
                 content_url: d.content_resource.fully_qualified_url(),
                 image_url: Resource::rendering(&id),
