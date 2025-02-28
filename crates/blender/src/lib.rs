@@ -99,6 +99,8 @@ impl Instance {
             .new_headless_mode()
             .window_size(800, 480)
             .arg("--use-skia-font-manager")
+            .arg("--font-render-hinting=none")
+            .arg("--force-device-scale-factor=1")
             .arg("--allow-insecure-localhost")
             .arg("--disable-gpu")
             .build()
@@ -143,6 +145,6 @@ impl Instance {
             image::ImageFormat::Png,
         )?;
         self.browser.dispose_browser_context(context).await?;
-        Ok(RenderedImage::from(img))
+        Ok(RenderedImage::from(img.unsharpen(1.5, 112)))
     }
 }
