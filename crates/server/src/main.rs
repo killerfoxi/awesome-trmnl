@@ -16,6 +16,7 @@ use log::info;
 mod device;
 mod error;
 mod generator;
+mod net;
 mod pages;
 mod plugins;
 mod resource;

@@ -637,10 +637,14 @@ impl Client {
 }
 
 mod geolocation {
+    use std::time::Duration;
+
     use http::header;
     use log::{debug, error};
     use serde::Deserialize;
     use url::Url;
+
+    use crate::net;
 
     #[derive(Deserialize)]
     struct Geometry {
@@ -671,18 +675,24 @@ mod geolocation {
             .append_pair("city", location.as_ref())
             .append_pair("featureType", "settlement")
             .append_pair("format", "geojson");
-        let resp: Response = reqwest::Client::new()
-            .get(search)
-            .header(header::USER_AGENT, "Awesome TRMNL")
-            .send()
-            .await
-            .inspect_err(|e| error!("Fetching: {e}"))
-            .inspect(|resp| debug!("Got response: {resp:#?}"))
-            .map_err(|_| Error::Request)?
-            .json()
-            .await
-            .inspect_err(|e| error!("Decoding: {e}"))
-            .map_err(|_| Error::Geo)?;
+        let resp: Response = net::retry(
+            || {
+                reqwest::Client::new()
+                    .get(search.clone())
+                    .header(header::USER_AGENT, "Awesome TRMNL")
+                    .send()
+            },
+            Duration::from_millis(500),
+            Duration::from_secs(2 * 60),
+        )
+        .await
+        .inspect_err(|e| error!("Fetching: {e}"))
+        .inspect(|resp| debug!("Got response: {resp:#?}"))
+        .map_err(|_| Error::Request)?
+        .json()
+        .await
+        .inspect_err(|e| error!("Decoding: {e}"))
+        .map_err(|_| Error::Geo)?;
         match resp.features.as_slice() {
             [] => Err(Error::NotFound),
             [first, ..] => Ok(first.geometry.coordinates.into()),
