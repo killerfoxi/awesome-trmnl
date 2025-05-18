@@ -100,7 +100,7 @@ async fn main() -> color_eyre::Result<()> {
     };
 
     let addr = SocketAddr::new(Ipv6Addr::UNSPECIFIED.into(), args.port);
-    info!("Starting listening on {}", addr);
+    info!("Starting listening on {addr}");
     serve::serve(addr, tls, state, args.show_request_details).await?;
     Ok(())
 }
