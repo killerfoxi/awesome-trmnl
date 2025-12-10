@@ -80,6 +80,7 @@ async fn main() -> color_eyre::Result<()> {
     let tls = if args.tls.nouse_tls {
         None
     } else {
+        rustls::crypto::aws_lc_rs::default_provider().install_default().unwrap();
         Some(
             args.tls
                 .cert_file

@@ -4,17 +4,18 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-chromiumoxide = { version = "0.7.0", default-features = false, features = [
+chromiumoxide = { version = "0.8.0", default-features = false, features = [
     "tokio-runtime",
+    "_fetcher-rustls-tokio",
 ] }
 futures = { version = "0.3.31", default-features = false, features = [
     "async-await",
     "std",
 ] }
-image = { version = "0.25.6", default-features = false, features = [
+image = { version = "0.25.9", default-features = false, features = [
     "png",
     "qoi",
 ] }
-log = "0.4.27"
-tokio = { version = "1.45.0", default-features = false, features = ["time"] }
-url = { version = "2.5.4", default-features = false }
+log = "0.4.29"
+tokio = { version = "1.48.0", default-features = false, features = ["time"] }
+url = { version = "2.5.7", default-features = false }
