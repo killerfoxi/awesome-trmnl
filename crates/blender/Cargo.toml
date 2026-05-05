@@ -2,6 +2,7 @@
 name = "blender"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 chromiumoxide = { version = "0.9.1", default-features = false, features = [
