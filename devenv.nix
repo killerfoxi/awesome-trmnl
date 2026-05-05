@@ -7,4 +7,9 @@
     enable = true;
     channel = "stable";
   };
+
+  tasks."atrmnl:build".exec = ''
+    cargo build --release --bin atrmnl_server
+    echo "Binary built at: target/release/atrmnl_server"
+  '';
 }

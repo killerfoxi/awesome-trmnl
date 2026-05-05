@@ -135,6 +135,14 @@ direnv allow  # or: devenv shell
 cargo run --bin atrmnl_server -- --nouse_tls
 ```
 
+Build the release binary via devenv:
+
+```bash
+devenv tasks run atrmnl:build
+```
+
+The finished binary will be at `target/release/atrmnl_server`.
+
 The server will start on `http://localhost:8223`. Visit `/preview/test` to see the test screen.
 
 ## Companion Firmware
