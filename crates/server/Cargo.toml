@@ -8,15 +8,15 @@ name = "atrmnl_server"
 path = "src/main.rs"
 
 [dependencies]
-reqwest = { version = "0.12.25", default-features = false, features = ["json", "blocking", "rustls-tls", "http2"] }
-axum = { version = "0.8.7", default-features = false, features = [
+reqwest = { version = "0.13.3", default-features = false, features = ["json", "blocking", "rustls", "http2"] }
+axum = { version = "0.8.9", default-features = false, features = [
     "tokio",
     "http1",
     "http2",
     "macros",
     "json",
 ] }
-tokio = { version = "1.48.0", default-features = false, features = [
+tokio = { version = "1.52.2", default-features = false, features = [
     "rt-multi-thread",
     "sync",
     "net",
@@ -25,31 +25,31 @@ tokio = { version = "1.48.0", default-features = false, features = [
 blender = { path = "../blender" }
 log = "0.4.29"
 maud = { version = "0.27.0", features = ["axum"] }
-url = { version = "2.5.7", default-features = false, features = ["serde"] }
+url = { version = "2.5.8", default-features = false, features = ["serde"] }
 color-eyre = "0.6.5"
-chrono = { version = "0.4.42", default-features = false, features = [
+chrono = { version = "0.4.44", default-features = false, features = [
     "clock",
     "serde",
 ] }
-tower-http = { version = "0.6.8", features = [
+tower-http = { version = "0.6.9", features = [
     "fs",
     "trace",
 ], default-features = false }
 serde = { version = "1.0.228", features = ["derive"] }
-futures = { version = "0.3.31", default-features = false }
+futures = { version = "0.3.32", default-features = false }
 http = "1.4.0"
-toml = "0.9.8"
+toml = "1.1.2"
 eyre = "0.6.12"
-serde_json = "1.0.145"
+serde_json = "1.0.149"
 iconify = "0.3.1"
 itertools = "0.14.0"
-clap = { version = "4.5.53", features = ["derive"] }
-tracing = "0.1.43"
-axum-server = { version = "0.7.3", default-features = false, features = [
+clap = { version = "4.6.1", features = ["derive"] }
+tracing = "0.1.44"
+axum-server = { version = "0.8.0", default-features = false, features = [
     "rustls",
     "tls-rustls",
 ] }
 pretty_env_logger = "0.5.0"
-rust-embed = { version = "8.9.0", features = ["axum", "mime_guess"] }
+rust-embed = { version = "8.11.0", features = ["axum", "mime_guess"] }
 mime_guess = "2.0.5"
-rustls = "0.23.35"
+rustls = "0.23.40"
