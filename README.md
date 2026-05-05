@@ -143,6 +143,14 @@ devenv tasks run atrmnl:build
 
 The finished binary will be at `target/release/atrmnl_server`.
 
+For Alpine Linux (musl/static linking):
+
+```bash
+devenv tasks run atrmnl:build:alpine
+```
+
+The static binary will be at `target/x86_64-unknown-linux-musl/release/atrmnl_server`.
+
 The server will start on `http://localhost:8223`. Visit `/preview/test` to see the test screen.
 
 ## Companion Firmware
