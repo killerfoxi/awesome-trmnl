@@ -79,3 +79,43 @@ impl generator::Content for Plugin {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_config_to_key() {
+        assert_eq!(
+            PluginConfig::Ticktick {
+                project_id: "p".into(),
+                auth: ticktick::Auth::from("t")
+            }
+            .to_key(),
+            "ticktick"
+        );
+        assert_eq!(PluginConfig::TestScreen.to_key(), "test");
+        assert_eq!(
+            PluginConfig::Weather {
+                location: "Berlin".into(),
+                detail: weather::Detail::default()
+            }
+            .to_key(),
+            "weather"
+        );
+    }
+
+    #[tokio::test]
+    async fn plugin_new_test_screen() {
+        let plugin = Plugin::new(PluginConfig::TestScreen).await.unwrap();
+        assert!(matches!(plugin, Plugin::TestScreen));
+    }
+
+    #[test]
+    fn mashup_debug_none() {
+        let mashup = mashup::Mashup::None("https://example.com".parse().unwrap());
+        let s = format!("{mashup:?}");
+        assert!(s.contains("None"));
+        assert!(s.contains("example.com"));
+    }
+}

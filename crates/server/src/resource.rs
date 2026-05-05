@@ -86,3 +86,98 @@ pub fn self_url() -> Url {
 }
 
 static SELF_URL: OnceLock<Url> = OnceLock::new();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_remote_http() {
+        let res: Resource = "http://example.com/foo".parse().unwrap();
+        assert!(matches!(res, Resource::Remote(url) if url.as_str() == "http://example.com/foo"));
+    }
+
+    #[test]
+    fn parse_remote_https() {
+        let res: Resource = "https://example.com/foo".parse().unwrap();
+        assert!(matches!(res, Resource::Remote(url) if url.as_str() == "https://example.com/foo"));
+    }
+
+    #[test]
+    fn parse_local_shorthand() {
+        let res: Resource = "/content/abc".parse().unwrap();
+        assert!(matches!(res, Resource::Local(url) if url.as_str() == "local:/content/abc"));
+    }
+
+    #[test]
+    fn parse_local_explicit() {
+        let res: Resource = "local:/screen/xyz".parse().unwrap();
+        assert!(matches!(res, Resource::Local(url) if url.as_str() == "local:/screen/xyz"));
+    }
+
+    #[test]
+    fn parse_unsupported_scheme() {
+        let res: Result<Resource, _> = "ftp://example.com".parse();
+        assert!(matches!(res, Err(Error::Unsupported)));
+    }
+
+    #[test]
+    fn parse_invalid_url() {
+        let res: Result<Resource, _> = "not a url".parse();
+        assert!(matches!(res, Err(Error::InvalidFormat)));
+    }
+
+    #[test]
+    fn self_hosted_content_creates_local() {
+        let res = Resource::self_hosted_content("device1");
+        assert!(matches!(res, Resource::Local(url) if url.path() == "/content/device1"));
+    }
+
+    #[test]
+    fn rendering_creates_local() {
+        let res = Resource::rendering("device1");
+        assert!(matches!(res, Resource::Local(url) if url.path() == "/screen/device1"));
+    }
+
+    #[test]
+    fn into_remote_converts_local() {
+        let base: Url = "https://localhost:8080/".parse().unwrap();
+        let res = Resource::self_hosted_content("d1").into_remote(&base).unwrap();
+        assert!(matches!(res, Resource::Remote(url) if url.as_str() == "https://localhost:8080/content/d1"));
+    }
+
+    #[test]
+    fn into_remote_keeps_remote() {
+        let base: Url = "https://localhost:8080/".parse().unwrap();
+        let res = Resource::Remote("https://example.com/foo".parse().unwrap())
+            .into_remote(&base)
+            .unwrap();
+        assert!(matches!(res, Resource::Remote(url) if url.as_str() == "https://example.com/foo"));
+    }
+
+    #[test]
+    fn fully_qualified_url_remote() {
+        let url: Url = "https://example.com/foo".parse().unwrap();
+        let res = Resource::Remote(url.clone());
+        assert_eq!(res.fully_qualified_url(), url);
+    }
+
+    #[test]
+    fn as_href_local() {
+        let res = Resource::Local("local:/content/abc".parse().unwrap());
+        assert_eq!(res.as_href(), "/content/abc");
+    }
+
+    #[test]
+    fn as_href_remote() {
+        let res = Resource::Remote("https://example.com/foo".parse().unwrap());
+        assert_eq!(res.as_href(), "https://example.com/foo");
+    }
+
+    #[test]
+    fn init_self_sets_url() {
+        init_self(8223, false);
+        let url = self_url();
+        assert_eq!(url.as_str(), "http://localhost:8223/");
+    }
+}

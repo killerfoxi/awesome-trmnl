@@ -347,3 +347,75 @@ fn status_bar(num_tasks: usize) -> Markup {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn priority_from_i32() {
+        assert!(matches!(Priority::from(1), Priority::Low));
+        assert!(matches!(Priority::from(3), Priority::Medium));
+        assert!(matches!(Priority::from(5), Priority::High));
+        assert!(matches!(Priority::from(0), Priority::None));
+        assert!(matches!(Priority::from(99), Priority::None));
+    }
+
+    #[test]
+    fn priority_icons() {
+        assert_eq!(Priority::High.icon(), "iconoir-priority-high");
+        assert_eq!(Priority::Medium.icon(), "iconoir-priority-medium");
+        assert_eq!(Priority::Low.icon(), "iconoir-priority-down");
+        assert_eq!(Priority::None.icon(), "");
+    }
+
+    #[test]
+    fn auth_from_string() {
+        let auth: Auth = "my_token".into();
+        assert_eq!(auth.token, "my_token");
+        assert!(auth.expires.is_none());
+    }
+
+    #[test]
+    fn auth_from_str() {
+        let auth: Auth = "my_token".into();
+        assert_eq!(auth.token, "my_token");
+    }
+
+    #[test]
+    fn endpoint_default() {
+        let ep = Endpoint::default();
+        assert_eq!(ep.as_str(), "https://api.ticktick.com/open/v1/");
+    }
+
+    #[test]
+    fn endpoint_for_project_data() {
+        let ep = Endpoint::default();
+        let url = ep.for_project_data(&Project::from("proj123".to_string()));
+        assert_eq!(url.as_str(), "https://api.ticktick.com/open/v1/project/proj123/data");
+    }
+
+    #[test]
+    fn content_renders() {
+        let now = Utc::now();
+        let markup = content(&[], now);
+        let html = markup.into_string();
+        assert!(html.contains("flex flex--left flex--row"));
+    }
+
+    #[test]
+    fn entry_renders_task() {
+        let now = Utc::now();
+        let task = Task {
+            title: "Test".into(),
+            content: "Details".into(),
+            due_date: Some(now),
+            start_date: Some(now),
+            priority: Priority::High,
+        };
+        let markup = entry(&task, now);
+        let html = markup.into_string();
+        assert!(html.contains("Test"));
+        assert!(html.contains("Details"));
+    }
+}

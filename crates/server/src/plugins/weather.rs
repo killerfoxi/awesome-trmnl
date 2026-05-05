@@ -636,6 +636,107 @@ impl Client {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weather_code_from_u8() {
+        assert!(matches!(WeatherCode::from(0), WeatherCode::Clear));
+        assert!(matches!(WeatherCode::from(1), WeatherCode::MostlyClear));
+        assert!(matches!(WeatherCode::from(2), WeatherCode::PartlyCloudy));
+        assert!(matches!(WeatherCode::from(3), WeatherCode::Overcast));
+        assert!(matches!(WeatherCode::from(45), WeatherCode::Fog));
+        assert!(matches!(WeatherCode::from(48), WeatherCode::Fog));
+        assert!(matches!(WeatherCode::from(51), WeatherCode::DrizzleLight));
+        assert!(matches!(WeatherCode::from(53), WeatherCode::DrizzleModerate));
+        assert!(matches!(WeatherCode::from(55), WeatherCode::DrizzleDense));
+        assert!(matches!(WeatherCode::from(61), WeatherCode::RainSlight));
+        assert!(matches!(WeatherCode::from(63), WeatherCode::RainModerate));
+        assert!(matches!(WeatherCode::from(65), WeatherCode::RainHeavy));
+        assert!(matches!(WeatherCode::from(95), WeatherCode::Thunderstorm));
+        assert!(matches!(WeatherCode::from(99), WeatherCode::Unclear));
+    }
+
+    #[test]
+    fn weather_code_display() {
+        assert_eq!(format!("{}", WeatherCode::Clear), "Sunny");
+        assert_eq!(format!("{}", WeatherCode::Thunderstorm), "Thunderstorm");
+        assert_eq!(format!("{}", WeatherCode::Unclear), "Unclear");
+    }
+
+    #[test]
+    fn wind_direction_from_u16() {
+        assert!(matches!(WindDirection::from(0), WindDirection::North));
+        assert!(matches!(WindDirection::from(45), WindDirection::NorthEast));
+        assert!(matches!(WindDirection::from(90), WindDirection::East));
+        assert!(matches!(WindDirection::from(135), WindDirection::SouthEast));
+        assert!(matches!(WindDirection::from(180), WindDirection::South));
+        assert!(matches!(WindDirection::from(225), WindDirection::SouthWest));
+        assert!(matches!(WindDirection::from(270), WindDirection::West));
+        assert!(matches!(WindDirection::from(315), WindDirection::NorthWest));
+        assert!(matches!(WindDirection::from(360), WindDirection::North));
+    }
+
+    #[test]
+    fn temperature_display() {
+        let t: Temperature = 23.456.into();
+        assert_eq!(format!("{t}"), "23.5");
+    }
+
+    #[test]
+    fn temperature_range_min_max() {
+        let range = TemperatureRange::new(Temperature::from(10.0), Temperature::from(20.0));
+        assert_eq!(format!("{}", range.min()), "10.0");
+        assert_eq!(format!("{}", range.max()), "20.0");
+    }
+
+    #[test]
+    fn humidity_display() {
+        let h: Humidity = 42.into();
+        assert_eq!(format!("{h}"), "42");
+    }
+
+    #[test]
+    fn detail_default_is_full() {
+        assert!(matches!(Detail::default(), Detail::Full));
+    }
+
+    #[test]
+    fn deserialize_intermediate_weather() {
+        let json = r#"{
+            "utc_offset_seconds": 3600,
+            "current": {
+                "time": "2024-01-01T12:00",
+                "temperature_2m": 15.5,
+                "apparent_temperature": 14.0,
+                "relative_humidity_2m": 60,
+                "weather_code": 1
+            },
+            "daily": {
+                "time": ["2024-01-01", "2024-01-02"],
+                "temperature_2m_max": [18.0, 20.0],
+                "temperature_2m_min": [10.0, 12.0],
+                "sunrise": ["2024-01-01T07:00", "2024-01-02T07:05"],
+                "uv_index_max": [3.0, 4.0],
+                "wind_speed_10m_max": [10.0, 15.0],
+                "wind_gusts_10m_max": [15.0, 20.0],
+                "wind_direction_10m_dominant": [180, 270],
+                "weather_code": [1, 2]
+            }
+        }"#;
+        let weather: Weather = serde_json::from_str(json).unwrap();
+        assert_eq!(format!("{}", weather.current.temperature), "15.5");
+        assert_eq!(weather.daily.len(), 2);
+        assert!(matches!(weather.daily[0].weather_code, WeatherCode::MostlyClear));
+    }
+
+    #[test]
+    fn convert_error_display() {
+        assert_eq!(format!("{}", ConvertError), "failed to convert into target struct");
+    }
+}
+
 mod geolocation {
     use std::time::Duration;
 

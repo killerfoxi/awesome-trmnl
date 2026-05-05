@@ -128,6 +128,50 @@ fn determine_image_type(headers: &header::HeaderMap) -> ImageType {
         .unwrap_or(ImageType::Png)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn determine_image_type_defaults_to_png() {
+        let headers = header::HeaderMap::new();
+        assert!(matches!(determine_image_type(&headers), ImageType::Png));
+    }
+
+    #[test]
+    fn determine_image_type_png_explicit() {
+        let mut headers = header::HeaderMap::new();
+        headers.insert(http::header::ACCEPT, "image/png".parse().unwrap());
+        assert!(matches!(determine_image_type(&headers), ImageType::Png));
+    }
+
+    #[test]
+    fn determine_image_type_qoi() {
+        let mut headers = header::HeaderMap::new();
+        headers.insert(http::header::ACCEPT, "image/qoi".parse().unwrap());
+        assert!(matches!(determine_image_type(&headers), ImageType::Qoi));
+    }
+
+    #[test]
+    fn determine_image_type_qoi_in_list() {
+        let mut headers = header::HeaderMap::new();
+        headers.insert(http::header::ACCEPT, "text/html,image/qoi,image/png".parse().unwrap());
+        assert!(matches!(determine_image_type(&headers), ImageType::Qoi));
+    }
+
+    #[test]
+    fn embedded_file_known_asset() {
+        let response = EmbededFile("style.css").into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn embedded_file_unknown_asset() {
+        let response = EmbededFile("does_not_exist.css").into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+}
+
 #[derive(Serialize)]
 pub struct ApiResponse {
     image_url: String,

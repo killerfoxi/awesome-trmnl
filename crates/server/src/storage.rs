@@ -51,6 +51,76 @@ impl Storage {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn write_temp_config(content: &str) -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "atrmnl_test_{}_{}.toml",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::SeqCst)
+        ));
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        path
+    }
+
+    #[tokio::test]
+    async fn storage_load_none_mashup() {
+        let cfg = r#"
+[mydevice]
+mashup = { none = "https://example.com/screen" }
+plugins = []
+"#;
+        let path = write_temp_config(cfg);
+        let storage = Storage::load(Some(path.clone())).await.unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let device = storage.device_by_id("mydevice").unwrap();
+        assert_eq!(device.id, "mydevice");
+        assert!(matches!(device.content_resource, Resource::Remote(ref url) if url.as_str() == "https://example.com/screen"));
+    }
+
+    #[tokio::test]
+    async fn storage_load_test_screen_plugin() {
+        let cfg = r#"
+[mydevice]
+mashup = { single = "test" }
+plugins = ["test_screen"]
+"#;
+        let path = write_temp_config(cfg);
+        let storage = Storage::load(Some(path.clone())).await.unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let device = storage.device_by_id("mydevice").unwrap();
+        assert_eq!(device.id, "mydevice");
+        assert!(matches!(device.content_resource, Resource::Local(_)));
+
+        let generator = storage.content_generator("mydevice");
+        assert!(generator.is_ok());
+    }
+
+    #[tokio::test]
+    async fn storage_device_not_found() {
+        let cfg = r#"
+[mydevice]
+mashup = { none = "https://example.com" }
+plugins = []
+"#;
+        let path = write_temp_config(cfg);
+        let storage = Storage::load(Some(path.clone())).await.unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        assert!(storage.device_by_id("nonexistent").is_none());
+        assert!(storage.content_generator("nonexistent").is_err());
+    }
+}
+
 mod ondisk {
     use std::{collections::HashMap, fmt::Debug, fs, path::PathBuf, pin::Pin, sync::Arc};
 

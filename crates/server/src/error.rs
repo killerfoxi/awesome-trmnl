@@ -84,3 +84,44 @@ impl IntoCanonical for blender::Error {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blender_not_found_into_canonical() {
+        let err = blender::Error::NotFound;
+        assert!(matches!(err.into_canonical(), Canonical::NotFound));
+    }
+
+    #[test]
+    fn blender_setup_into_canonical() {
+        let err = blender::Error::Setup("fail".into());
+        assert!(matches!(err.into_canonical(), Canonical::Internal));
+    }
+
+    #[test]
+    fn blender_other_into_canonical() {
+        let err = blender::Error::Other("fail".into());
+        assert!(matches!(err.into_canonical(), Canonical::Internal));
+    }
+
+    #[test]
+    fn blender_could_not_create_context_into_canonical() {
+        let err = blender::Error::CouldNotCreateContext;
+        assert!(matches!(err.into_canonical(), Canonical::Internal));
+    }
+
+    #[test]
+    fn blender_invalid_url_into_canonical() {
+        let err = blender::Error::InvalidUrl(url::ParseError::EmptyHost);
+        assert!(matches!(err.into_canonical(), Canonical::Internal));
+    }
+
+    #[test]
+    fn blender_image_into_canonical() {
+        let err = blender::Error::Image;
+        assert!(matches!(err.into_canonical(), Canonical::Internal));
+    }
+}

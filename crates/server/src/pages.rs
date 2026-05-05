@@ -79,3 +79,67 @@ pub fn screen(inner: impl Borrow<Markup>) -> Markup {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_produces_markup() {
+        let markup = index(&html! { p { "Hello" } });
+        let s = markup.into_string();
+        assert!(s.contains("<!DOCTYPE html>"));
+        assert!(s.contains("Hello"));
+        assert!(s.contains("style.css"));
+    }
+
+    #[test]
+    fn error_produces_markup() {
+        let markup = error("Oops", "Something went wrong");
+        let s = markup.into_string();
+        assert!(s.contains("Oops"));
+        assert!(s.contains("Something went wrong"));
+    }
+
+    #[test]
+    fn not_found_produces_markup() {
+        let markup = not_found("Missing");
+        let s = markup.into_string();
+        assert!(s.contains("404"));
+        assert!(s.contains("Missing"));
+    }
+
+    #[test]
+    fn bad_request_produces_markup() {
+        let markup = bad_request("Bad");
+        let s = markup.into_string();
+        assert!(s.contains("naughty thing"));
+        assert!(s.contains("Bad"));
+    }
+
+    #[test]
+    fn internal_error_produces_markup() {
+        let markup = internal_error("Boom");
+        let s = markup.into_string();
+        assert!(s.contains("terribly sorry"));
+        assert!(s.contains("Boom"));
+    }
+
+    #[test]
+    fn test_screen_produces_markup() {
+        let markup = test_screen();
+        let s = markup.into_string();
+        assert!(s.contains("Motivational Quote"));
+        assert!(s.contains("Michael Scott"));
+    }
+
+    #[test]
+    fn screen_produces_markup() {
+        let inner = html! { p { "Content" } };
+        let markup = screen(&inner);
+        let s = markup.into_string();
+        assert!(s.contains("<!DOCTYPE html>"));
+        assert!(s.contains("Content"));
+        assert!(s.contains("plugins.css"));
+    }
+}

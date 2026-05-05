@@ -122,6 +122,69 @@ impl IntoResponse for SetupError {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn setup_error_missing_into_response() {
+        let resp = SetupError::Missing.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn error_fetch_request_into_response() {
+        let err = Error::Fetch {
+            kind: FetchErrorKind::Request(StatusCode::NOT_FOUND),
+            target: "https://example.com".into(),
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[test]
+    fn error_fetch_network_into_response() {
+        let err = Error::Fetch {
+            kind: FetchErrorKind::Network,
+            target: "https://example.com".into(),
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn error_fetch_timeout_into_response() {
+        let err = Error::Fetch {
+            kind: FetchErrorKind::Timeout,
+            target: "https://example.com".into(),
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::GATEWAY_TIMEOUT);
+    }
+
+    #[test]
+    fn error_fetch_invalid_data_into_response() {
+        let err = Error::Fetch {
+            kind: FetchErrorKind::InvalidData,
+            target: "https://example.com".into(),
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[test]
+    fn error_misconfigured_into_response() {
+        let resp = Error::Misconfigured.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn error_unknown_into_response() {
+        let resp = Error::Unknown.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+}
+
 pub trait Content {
     fn generate(&self) -> BoxFuture<'_, Result<Markup, Error>>;
 }
