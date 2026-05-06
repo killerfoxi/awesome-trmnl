@@ -10,7 +10,10 @@ use std::{
 
 use chromiumoxide::{
     Browser, BrowserConfig,
-    cdp::browser_protocol::target::{CreateBrowserContextParams, CreateTargetParams},
+    cdp::browser_protocol::{
+        security::SetIgnoreCertificateErrorsParams,
+        target::{CreateBrowserContextParams, CreateTargetParams},
+    },
     error::CdpError,
 };
 use futures::stream::StreamExt;
@@ -116,6 +119,8 @@ impl Instance {
             .arg("--use-angle=swiftshader")
             .arg("--enable-unsafe-swiftshader")
             .arg("--allow-insecure-localhost")
+            .arg("--ignore-certificate-errors")
+            .arg("--test-type")
             .arg("--disable-gpu")
             .build()
             .map_err(Error::Setup)?;
@@ -127,6 +132,10 @@ impl Instance {
                 debug!("Got event: {e:?}");
             }
         });
+        browser
+            .execute(SetIgnoreCertificateErrorsParams::new(true))
+            .await
+            .map_err(|e| Error::InternalRender(e))?;
 
         Ok(Self {
             browser,
