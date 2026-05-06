@@ -107,13 +107,19 @@ mod tests {
 
     #[tokio::test]
     async fn plugin_new_test_screen() {
-        let plugin = Plugin::new(PluginConfig::TestScreen).await.unwrap();
+        let plugin = Plugin::new(PluginConfig::TestScreen)
+            .await
+            .expect("Failed to create test screen plugin");
         assert!(matches!(plugin, Plugin::TestScreen));
     }
 
     #[test]
     fn mashup_debug_none() {
-        let mashup = mashup::Mashup::None("https://example.com".parse().unwrap());
+        let mashup = mashup::Mashup::None(
+            "https://example.com"
+                .parse()
+                .expect("Hardcoded URL is valid"),
+        );
         let s = format!("{mashup:?}");
         assert!(s.contains("None"));
         assert!(s.contains("example.com"));

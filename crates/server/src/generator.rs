@@ -29,7 +29,10 @@ impl From<reqwest::Error> for Error {
         let target = err.url().map_or_else(String::default, ToString::to_string);
         if err.is_status() {
             Self::Fetch {
-                kind: FetchErrorKind::Request(err.status().unwrap()),
+                kind: FetchErrorKind::Request(
+                    err.status()
+                        .expect("is_status guarantees a status code is present"),
+                ),
                 target,
             }
         } else if err.is_connect() {

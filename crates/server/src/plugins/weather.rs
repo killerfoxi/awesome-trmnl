@@ -599,7 +599,8 @@ pub struct Client {
 
 impl Client {
     pub async fn new(location: impl AsRef<str>, detail: Detail) -> Result<Self, Error> {
-        let mut url = Url::parse("https://api.open-meteo.com/v1/forecast").unwrap();
+        let mut url = Url::parse("https://api.open-meteo.com/v1/forecast")
+            .expect("Hardcoded Open-Meteo URL is always valid");
         let coords = geolocation::resolve(location).await?;
         url.query_pairs_mut()
             .clear()
@@ -725,7 +726,7 @@ mod tests {
                 "weather_code": [1, 2]
             }
         }"#;
-        let weather: Weather = serde_json::from_str(json).unwrap();
+        let weather: Weather = serde_json::from_str(json).expect("Valid test JSON");
         assert_eq!(format!("{}", weather.current.temperature), "15.5");
         assert_eq!(weather.daily.len(), 2);
         assert!(matches!(weather.daily[0].weather_code, WeatherCode::MostlyClear));
@@ -769,7 +770,8 @@ mod geolocation {
     }
 
     pub async fn resolve(location: impl AsRef<str>) -> Result<(f64, f64), Error> {
-        let mut search = Url::parse("https://nominatim.openstreetmap.org/search").unwrap();
+        let mut search = Url::parse("https://nominatim.openstreetmap.org/search")
+            .expect("Hardcoded Nominatim URL is always valid");
         search
             .query_pairs_mut()
             .clear()

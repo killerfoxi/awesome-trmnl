@@ -1,6 +1,6 @@
-#![warn(tail_expr_drop_order)]
-#![warn(clippy::pedantic, clippy::nursery)]
-#![allow(clippy::too_many_lines)]
+#![warn(tail_expr_drop_order, clippy::nursery)]
+#![deny(clippy::pedantic)]
+#![allow(clippy::too_many_lines, reason = "CLI setup and server bootstrap are inherently long")]
 
 use std::{
     net::{Ipv6Addr, SocketAddr},
@@ -80,7 +80,9 @@ async fn main() -> color_eyre::Result<()> {
     let tls = if args.tls.nouse_tls {
         None
     } else {
-        rustls::crypto::aws_lc_rs::default_provider().install_default().unwrap();
+        rustls::crypto::aws_lc_rs::default_provider()
+            .install_default()
+            .expect("Failed to install rustls crypto provider");
         Some(
             args.tls
                 .cert_file
@@ -92,7 +94,12 @@ async fn main() -> color_eyre::Result<()> {
     };
 
     let state = serve::ServerState {
-        renderer: Arc::new(blender::Instance::new(args.user_dir).await.unwrap()),
+        renderer: Arc::new(
+            blender::Instance::new(args.user_dir)
+                .await
+                .map_err(|e| eyre!("Failed to initialize browser renderer: {e}"))?
+                ,
+        ),
         storage: Arc::new(
             storage::Storage::load(args.devices_file)
                 .await

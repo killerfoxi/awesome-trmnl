@@ -1,6 +1,6 @@
-#![warn(tail_expr_drop_order)]
-#![warn(clippy::pedantic, clippy::nursery)]
-#![allow(clippy::missing_errors_doc)]
+#![warn(tail_expr_drop_order, clippy::nursery)]
+#![deny(clippy::pedantic)]
+#![allow(clippy::missing_errors_doc, reason = "Error variants are self-describing")]
 
 use std::{
     io::{Seek, Write},
@@ -16,16 +16,24 @@ use chromiumoxide::{
 use futures::stream::StreamExt;
 use image::load_from_memory_with_format;
 use log::{debug, error};
+use thiserror::Error;
 use tokio::task::JoinHandle;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("Setup failed: {0}")]
     Setup(String),
+    #[error("Could not create browser context")]
     CouldNotCreateContext,
+    #[error("Internal render error: {0}")]
     InternalRender(CdpError),
+    #[error("Invalid URL: {0}")]
     InvalidUrl(url::ParseError),
+    #[error("Not found")]
     NotFound,
+    #[error("Image processing error")]
     Image,
+    #[error("{0}")]
     Other(String),
 }
 
@@ -147,7 +155,9 @@ mod tests {
         let img = image::DynamicImage::new_rgb8(10, 10);
         let rendered = RenderedImage::from(img);
         let mut buf = std::io::Cursor::new(Vec::new());
-        rendered.write_as_png(&mut buf).unwrap();
+        rendered
+            .write_as_png(&mut buf)
+            .expect("Failed to write PNG");
         assert!(!buf.into_inner().is_empty());
     }
 
@@ -156,7 +166,9 @@ mod tests {
         let img = image::DynamicImage::new_rgb8(10, 10);
         let rendered = RenderedImage::from(img);
         let mut buf = std::io::Cursor::new(Vec::new());
-        rendered.write_as_qoi(&mut buf).unwrap();
+        rendered
+            .write_as_qoi(&mut buf)
+            .expect("Failed to write QOI");
         assert!(!buf.into_inner().is_empty());
     }
 }

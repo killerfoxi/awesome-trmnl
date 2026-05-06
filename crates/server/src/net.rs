@@ -62,7 +62,7 @@ mod tests {
     #[tokio::test]
     async fn retry_succeeds_first_try() {
         let result: Result<i32, RetryableError> = retry(|| async { Ok(42) }, Duration::from_millis(10), Duration::from_secs(1)).await;
-        assert_eq!(result.unwrap(), 42);
+        assert_eq!(result.expect("Retry should succeed"), 42);
     }
 
     #[tokio::test]
@@ -81,7 +81,7 @@ mod tests {
             Duration::from_secs(1),
         )
         .await;
-        assert_eq!(result.unwrap(), 42);
+        assert_eq!(result.expect("Retry should succeed"), 42);
         assert_eq!(count.load(Ordering::SeqCst), 3);
     }
 

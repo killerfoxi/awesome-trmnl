@@ -102,7 +102,7 @@ async fn render_screen(
     let img = renderer
         .render(url.as_str())
         .await
-        .inspect_err(|e| error!("Rendering error: {e:?}"))?; //.map(|i| i.into_grayscaled())?;
+        .inspect_err(|e| error!("Rendering error: {e:?}"))?;
     let mut writer = std::io::Cursor::new(Vec::with_capacity(img.byte_size()));
     match image_type {
         ImageType::Png => img.write_as_png(&mut writer)?,
@@ -141,21 +141,32 @@ mod tests {
     #[test]
     fn determine_image_type_png_explicit() {
         let mut headers = header::HeaderMap::new();
-        headers.insert(http::header::ACCEPT, "image/png".parse().unwrap());
+        headers.insert(
+            http::header::ACCEPT,
+            "image/png".parse().expect("Hardcoded header value is valid"),
+        );
         assert!(matches!(determine_image_type(&headers), ImageType::Png));
     }
 
     #[test]
     fn determine_image_type_qoi() {
         let mut headers = header::HeaderMap::new();
-        headers.insert(http::header::ACCEPT, "image/qoi".parse().unwrap());
+        headers.insert(
+            http::header::ACCEPT,
+            "image/qoi".parse().expect("Hardcoded header value is valid"),
+        );
         assert!(matches!(determine_image_type(&headers), ImageType::Qoi));
     }
 
     #[test]
     fn determine_image_type_qoi_in_list() {
         let mut headers = header::HeaderMap::new();
-        headers.insert(http::header::ACCEPT, "text/html,image/qoi,image/png".parse().unwrap());
+        headers.insert(
+            http::header::ACCEPT,
+            "text/html,image/qoi,image/png"
+                .parse()
+                .expect("Hardcoded header value is valid"),
+        );
         assert!(matches!(determine_image_type(&headers), ImageType::Qoi));
     }
 

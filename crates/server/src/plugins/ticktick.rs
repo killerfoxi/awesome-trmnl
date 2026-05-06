@@ -35,7 +35,10 @@ impl From<reqwest::Error> for FetchErrorKind {
         } else if err.is_request() {
             Self::InvalidRequest
         } else if err.is_status() {
-            match err.status().unwrap() {
+            match err
+                .status()
+                .expect("is_status guarantees a status code is present")
+            {
                 StatusCode::NOT_FOUND => Self::NotFound,
                 StatusCode::FORBIDDEN => Self::PermissionDenied,
                 StatusCode::UNAUTHORIZED => Self::Unauthenticated,
@@ -109,13 +112,16 @@ impl Endpoint {
     pub fn for_project_data(&self, project: &Project) -> Url {
         self.0
             .join(&format!("project/{}/data", project.id))
-            .unwrap()
+            .expect("TickTick API path is always valid")
     }
 }
 
 impl Default for Endpoint {
     fn default() -> Self {
-        Self(Url::parse("https://api.ticktick.com/open/v1/").unwrap())
+        Self(
+            Url::parse("https://api.ticktick.com/open/v1/")
+                .expect("Hardcoded TickTick URL is always valid"),
+        )
     }
 }
 
@@ -171,7 +177,7 @@ impl Client {
                 .redirect(redirect::Policy::none())
                 .default_headers(headers)
                 .build()
-                .unwrap(),
+                .expect("Valid reqwest client configuration"),
             endpoint: Endpoint::default(),
         })
     }

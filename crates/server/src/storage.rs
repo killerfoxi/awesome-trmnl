@@ -65,8 +65,9 @@ mod tests {
             std::process::id(),
             COUNTER.fetch_add(1, Ordering::SeqCst)
         ));
-        let mut file = std::fs::File::create(&path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
+        let mut file = std::fs::File::create(&path).expect("Failed to create temp file");
+        file.write_all(content.as_bytes())
+            .expect("Failed to write temp config");
         path
     }
 
@@ -78,10 +79,12 @@ mashup = { none = "https://example.com/screen" }
 plugins = []
 "#;
         let path = write_temp_config(cfg);
-        let storage = Storage::load(Some(path.clone())).await.unwrap();
-        std::fs::remove_file(&path).unwrap();
+        let storage = Storage::load(Some(path.clone()))
+            .await
+            .expect("Failed to load storage");
+        std::fs::remove_file(&path).expect("Failed to remove temp file");
 
-        let device = storage.device_by_id("mydevice").unwrap();
+        let device = storage.device_by_id("mydevice").expect("Device not found");
         assert_eq!(device.id, "mydevice");
         assert!(matches!(device.content_resource, Resource::Remote(ref url) if url.as_str() == "https://example.com/screen"));
     }
@@ -94,10 +97,12 @@ mashup = { single = "test" }
 plugins = ["test_screen"]
 "#;
         let path = write_temp_config(cfg);
-        let storage = Storage::load(Some(path.clone())).await.unwrap();
-        std::fs::remove_file(&path).unwrap();
+        let storage = Storage::load(Some(path.clone()))
+            .await
+            .expect("Failed to load storage");
+        std::fs::remove_file(&path).expect("Failed to remove temp file");
 
-        let device = storage.device_by_id("mydevice").unwrap();
+        let device = storage.device_by_id("mydevice").expect("Device not found");
         assert_eq!(device.id, "mydevice");
         assert!(matches!(device.content_resource, Resource::Local(_)));
 
@@ -113,8 +118,10 @@ mashup = { none = "https://example.com" }
 plugins = []
 "#;
         let path = write_temp_config(cfg);
-        let storage = Storage::load(Some(path.clone())).await.unwrap();
-        std::fs::remove_file(&path).unwrap();
+        let storage = Storage::load(Some(path.clone()))
+            .await
+            .expect("Failed to load storage");
+        std::fs::remove_file(&path).expect("Failed to remove temp file");
 
         assert!(storage.device_by_id("nonexistent").is_none());
         assert!(storage.content_generator("nonexistent").is_err());
@@ -134,6 +141,7 @@ mod ondisk {
         NotFound,
         InvalidConfig,
         LoadConfig(toml::de::Error),
+        UnknownPlugin(String),
     }
 
     impl std::fmt::Display for Error {
@@ -144,6 +152,7 @@ mod ondisk {
                     write!(f, "The device file was loaded, but contained invalid data.")
                 }
                 Self::LoadConfig(error) => write!(f, "{error}"),
+                Self::UnknownPlugin(name) => write!(f, "Unknown plugin: {name}"),
             }
         }
     }
@@ -166,14 +175,22 @@ mod ondisk {
     }
 
     impl MashupSpec {
-        pub fn into_resolved_mashup(self, plugins: &plugins::PluginsMap) -> Mashup {
+        pub fn into_resolved_mashup(self, plugins: &plugins::PluginsMap) -> Result<Mashup, Error> {
             match self {
-                Self::None(url) => Mashup::None(url),
-                Self::Single(source) => Mashup::Single(source.resolve(plugins).unwrap()),
-                Self::LeftRight { left, right } => Mashup::LeftRight {
-                    left: left.resolve(plugins).unwrap(),
-                    right: right.resolve(plugins).unwrap(),
-                },
+                Self::None(url) => Ok(Mashup::None(url)),
+                Self::Single(source) => source
+                    .resolve(plugins)
+                    .map(Mashup::Single)
+                    .ok_or_else(|| Error::UnknownPlugin(source.0)),
+                Self::LeftRight { left, right } => {
+                    let l = left
+                        .resolve(plugins)
+                        .ok_or_else(|| Error::UnknownPlugin(left.0.clone()))?;
+                    let r = right
+                        .resolve(plugins)
+                        .ok_or_else(|| Error::UnknownPlugin(right.0.clone()))?;
+                    Ok(Mashup::LeftRight { left: l, right: r })
+                }
             }
         }
     }
@@ -223,7 +240,7 @@ mod ondisk {
             devices.insert(
                 id,
                 Device {
-                    mashup: dinfo.mashup.into_resolved_mashup(&plugins),
+                    mashup: dinfo.mashup.into_resolved_mashup(&plugins)?,
                     plugins,
                 },
             );
