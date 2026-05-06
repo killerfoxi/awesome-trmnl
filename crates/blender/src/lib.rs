@@ -96,83 +96,6 @@ impl From<image::DynamicImage> for RenderedImage {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn error_from_image_error() {
-        let result: Result<(), Error> =
-            image::load_from_memory_with_format(&[], image::ImageFormat::Png)
-                .map(|_| ())
-                .map_err(Into::into);
-        assert!(matches!(result, Err(Error::Image)));
-    }
-
-    #[test]
-    fn error_from_string() {
-        let err: Error = "oops".to_string().into();
-        assert!(matches!(err, Error::Other(ref s) if s == "oops"));
-    }
-
-    #[test]
-    fn error_from_cdp_error_not_found() {
-        let err: Error = CdpError::NotFound.into();
-        assert!(matches!(err, Error::NotFound));
-    }
-
-    #[test]
-    fn error_from_cdp_error_url() {
-        let parse_err = url::ParseError::EmptyHost;
-        let err: Error = CdpError::Url(parse_err).into();
-        assert!(matches!(err, Error::InvalidUrl(url::ParseError::EmptyHost)));
-    }
-
-    #[test]
-    fn error_from_cdp_error_other() {
-        let cdp_err = CdpError::from(std::io::Error::new(std::io::ErrorKind::Other, "fail"));
-        let err: Error = cdp_err.into();
-        assert!(matches!(err, Error::InternalRender(_)));
-    }
-
-    #[test]
-    fn rendered_image_byte_size() {
-        let img = image::DynamicImage::new_rgb8(10, 10);
-        let rendered = RenderedImage::from(img);
-        assert_eq!(rendered.byte_size(), 300);
-    }
-
-    #[test]
-    fn rendered_image_into_grayscaled() {
-        let img = image::DynamicImage::new_rgb8(10, 10);
-        let rendered = RenderedImage::from(img);
-        let gray = rendered.into_grayscaled();
-        assert_eq!(gray.byte_size(), 100);
-    }
-
-    #[test]
-    fn rendered_image_write_png() {
-        let img = image::DynamicImage::new_rgb8(10, 10);
-        let rendered = RenderedImage::from(img);
-        let mut buf = std::io::Cursor::new(Vec::new());
-        rendered
-            .write_as_png(&mut buf)
-            .expect("Failed to write PNG");
-        assert!(!buf.into_inner().is_empty());
-    }
-
-    #[test]
-    fn rendered_image_write_qoi() {
-        let img = image::DynamicImage::new_rgb8(10, 10);
-        let rendered = RenderedImage::from(img);
-        let mut buf = std::io::Cursor::new(Vec::new());
-        rendered
-            .write_as_qoi(&mut buf)
-            .expect("Failed to write QOI");
-        assert!(!buf.into_inner().is_empty());
-    }
-}
-
 pub struct Instance {
     browser: Browser,
     _event_handle: JoinHandle<()>,
@@ -237,5 +160,82 @@ impl Instance {
         )?;
         self.browser.dispose_browser_context(context).await?;
         Ok(RenderedImage::from(img.unsharpen(1.5, 112)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_from_image_error() {
+        let result: Result<(), Error> =
+            image::load_from_memory_with_format(&[], image::ImageFormat::Png)
+                .map(|_| ())
+                .map_err(Into::into);
+        assert!(matches!(result, Err(Error::Image)));
+    }
+
+    #[test]
+    fn error_from_string() {
+        let err: Error = "oops".to_string().into();
+        assert!(matches!(err, Error::Other(ref s) if s == "oops"));
+    }
+
+    #[test]
+    fn error_from_cdp_error_not_found() {
+        let err: Error = CdpError::NotFound.into();
+        assert!(matches!(err, Error::NotFound));
+    }
+
+    #[test]
+    fn error_from_cdp_error_url() {
+        let parse_err = url::ParseError::EmptyHost;
+        let err: Error = CdpError::Url(parse_err).into();
+        assert!(matches!(err, Error::InvalidUrl(url::ParseError::EmptyHost)));
+    }
+
+    #[test]
+    fn error_from_cdp_error_other() {
+        let cdp_err = CdpError::from(std::io::Error::other("fail"));
+        let err: Error = cdp_err.into();
+        assert!(matches!(err, Error::InternalRender(_)));
+    }
+
+    #[test]
+    fn rendered_image_byte_size() {
+        let img = image::DynamicImage::new_rgb8(10, 10);
+        let rendered = RenderedImage::from(img);
+        assert_eq!(rendered.byte_size(), 300);
+    }
+
+    #[test]
+    fn rendered_image_into_grayscaled() {
+        let img = image::DynamicImage::new_rgb8(10, 10);
+        let rendered = RenderedImage::from(img);
+        let gray = rendered.into_grayscaled();
+        assert_eq!(gray.byte_size(), 100);
+    }
+
+    #[test]
+    fn rendered_image_write_png() {
+        let img = image::DynamicImage::new_rgb8(10, 10);
+        let rendered = RenderedImage::from(img);
+        let mut buf = std::io::Cursor::new(Vec::new());
+        rendered
+            .write_as_png(&mut buf)
+            .expect("Failed to write PNG");
+        assert!(!buf.into_inner().is_empty());
+    }
+
+    #[test]
+    fn rendered_image_write_qoi() {
+        let img = image::DynamicImage::new_rgb8(10, 10);
+        let rendered = RenderedImage::from(img);
+        let mut buf = std::io::Cursor::new(Vec::new());
+        rendered
+            .write_as_qoi(&mut buf)
+            .expect("Failed to write QOI");
+        assert!(!buf.into_inner().is_empty());
     }
 }

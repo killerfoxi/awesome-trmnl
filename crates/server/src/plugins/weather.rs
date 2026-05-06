@@ -489,6 +489,7 @@ impl TryFrom<intermediate::Weather> for Weather {
             current: CurrentForecast {
                 time: current
                     .time
+                    .into_inner()
                     .and_local_timezone(weather.ufc_offset)
                     .latest()
                     .ok_or(ConvertError)?,
@@ -528,7 +529,7 @@ impl TryFrom<intermediate::Weather> for Weather {
 }
 
 mod intermediate {
-    use std::ops::Deref;
+
 
     use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
 
@@ -544,13 +545,7 @@ mod intermediate {
         }
     }
 
-    impl Deref for DayAndTime {
-        type Target = NaiveDateTime;
 
-        fn deref(&self) -> &Self::Target {
-            &self.0
-        }
-    }
 
     #[derive(serde::Deserialize)]
     pub struct CurrentForecast {
@@ -734,7 +729,7 @@ mod tests {
 
     #[test]
     fn convert_error_display() {
-        assert_eq!(format!("{}", ConvertError), "failed to convert into target struct");
+        assert_eq!(format!("{ConvertError}"), "failed to convert into target struct");
     }
 }
 
@@ -786,7 +781,7 @@ mod geolocation {
                     .send()
             },
             Duration::from_millis(500),
-            Duration::from_secs(2 * 60),
+            Duration::from_mins(2),
         )
         .await
         .inspect_err(|e| error!("Fetching: {e}"))

@@ -1,13 +1,10 @@
 use std::{pin::Pin, sync::Arc};
 
 use maud::html;
-use url::Url;
-
 use super::Plugin;
 use crate::generator;
 
 pub enum Mashup {
-    None(Url),
     Single(Pin<Arc<Plugin>>),
     LeftRight {
         left: Pin<Arc<Plugin>>,
@@ -18,7 +15,6 @@ pub enum Mashup {
 impl std::fmt::Debug for Mashup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::None(u) => f.debug_tuple("None").field(u).finish(),
             Self::Single(_) => f.debug_tuple("Single").finish(),
             Self::LeftRight { left: _, right: _ } => f.debug_struct("LeftRight").finish(),
         }
@@ -28,7 +24,6 @@ impl std::fmt::Debug for Mashup {
 impl generator::Content for Mashup {
     fn generate(&self) -> futures::future::BoxFuture<'_, Result<maud::Markup, generator::Error>> {
         match self {
-            Self::None(_) => panic!("Can't generate content for remotes"),
             Self::Single(p) => Box::pin(async {
                 Ok(html! {
                     div ."view view--full" {

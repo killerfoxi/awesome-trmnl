@@ -113,15 +113,5 @@ mod tests {
         assert!(matches!(plugin, Plugin::TestScreen));
     }
 
-    #[test]
-    fn mashup_debug_none() {
-        let mashup = mashup::Mashup::None(
-            "https://example.com"
-                .parse()
-                .expect("Hardcoded URL is valid"),
-        );
-        let s = format!("{mashup:?}");
-        assert!(s.contains("None"));
-        assert!(s.contains("example.com"));
-    }
+
 }

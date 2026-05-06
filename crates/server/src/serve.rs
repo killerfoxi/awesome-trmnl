@@ -37,6 +37,17 @@ impl ImageType {
             Self::Qoi => "image/qoi",
         }
     }
+
+    fn write_image<W: std::io::Seek + std::io::Write>(
+        &self,
+        img: &blender::RenderedImage,
+        writer: &mut W,
+    ) -> Result<(), blender::Error> {
+        match self {
+            Self::Png => img.write_as_png(writer),
+            Self::Qoi => img.write_as_qoi(writer),
+        }
+    }
 }
 
 pub async fn embedded_assets(Path(file): Path<String>) -> impl IntoResponse {
@@ -104,10 +115,7 @@ async fn render_screen(
         .await
         .inspect_err(|e| error!("Rendering error: {e:?}"))?;
     let mut writer = std::io::Cursor::new(Vec::with_capacity(img.byte_size()));
-    match image_type {
-        ImageType::Png => img.write_as_png(&mut writer)?,
-        ImageType::Qoi => img.write_as_qoi(&mut writer)?,
-    }
+    image_type.write_image(&img, &mut writer)?;
     let data = writer.into_inner().into_boxed_slice();
     debug!("Image size: {}", data.len());
     Ok(([(header::CONTENT_TYPE, image_type.content_type())], data))
@@ -116,16 +124,9 @@ async fn render_screen(
 fn determine_image_type(headers: &header::HeaderMap) -> ImageType {
     headers
         .get(http::header::ACCEPT)
-        .and_then(|a| {
-            a.to_str().ok().map(|accepting| {
-                accepting
-                    .split(',')
-                    .contains("image/qoi")
-                    .then_some(ImageType::Qoi)
-            })
-        })
-        .flatten()
-        .unwrap_or(ImageType::Png)
+        .and_then(|a| a.to_str().ok())
+        .filter(|accepting| accepting.split(',').contains("image/qoi"))
+        .map_or(ImageType::Png, |_| ImageType::Qoi)
 }
 
 #[cfg(test)]
@@ -189,7 +190,7 @@ pub struct ApiResponse {
     refresh_rate: u64,
 }
 
-#[axum::debug_handler]
+#[allow(clippy::unused_async)]
 pub async fn api_display(
     State(_storage): State<Arc<storage::Storage>>,
     headers: http::header::HeaderMap,
@@ -242,7 +243,7 @@ async fn screen_content(
     Ok(pages::screen(content.generate().await?))
 }
 
-#[axum::debug_handler]
+#[allow(clippy::unused_async)]
 async fn preview(_: State<Arc<storage::Storage>>, device: device::Info) -> Markup {
     pages::index(html! {
         h1 { "Preview TRMNL screen" }

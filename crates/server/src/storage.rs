@@ -31,9 +31,9 @@ impl Storage {
             .inspect(|d| debug!("Found device {d:?}"))
             .map(|d| Device {
                 id: id.into(),
-                content_resource: match &d.mashup {
-                    plugins::mashup::Mashup::None(url) => Resource::Remote(url.clone()),
-                    _ => Resource::self_hosted_content(id),
+                content_resource: match &d.content_source {
+                    ondisk::ContentSource::Remote(url) => Resource::Remote(url.clone()),
+                    ondisk::ContentSource::Local(_) => Resource::self_hosted_content(id),
                 },
             })
     }
@@ -41,12 +41,12 @@ impl Storage {
     pub fn content_generator(
         &self,
         id: &str,
-    ) -> Result<&(impl generator::Content + use<>), generator::SetupError> {
+    ) -> Result<&plugins::mashup::Mashup, generator::SetupError> {
         debug!("Trying to find {id}");
         self.devices
             .get(id)
             .inspect(|_| debug!("Found an entry"))
-            .map(|d| &d.mashup)
+            .and_then(|d| d.content_source.as_local())
             .ok_or(generator::SetupError::Missing)
     }
 }
@@ -174,35 +174,29 @@ mod ondisk {
         LeftRight { left: Plugin, right: Plugin },
     }
 
-    impl MashupSpec {
-        pub fn into_resolved_mashup(self, plugins: &plugins::PluginsMap) -> Result<Mashup, Error> {
-            match self {
-                Self::None(url) => Ok(Mashup::None(url)),
-                Self::Single(source) => source
-                    .resolve(plugins)
-                    .map(Mashup::Single)
-                    .ok_or_else(|| Error::UnknownPlugin(source.0)),
-                Self::LeftRight { left, right } => {
-                    let l = left
-                        .resolve(plugins)
-                        .ok_or_else(|| Error::UnknownPlugin(left.0.clone()))?;
-                    let r = right
-                        .resolve(plugins)
-                        .ok_or_else(|| Error::UnknownPlugin(right.0.clone()))?;
-                    Ok(Mashup::LeftRight { left: l, right: r })
-                }
-            }
-        }
-    }
-
     #[derive(serde::Deserialize)]
     struct DeviceConfig {
         mashup: MashupSpec,
         plugins: Vec<plugins::PluginConfig>,
     }
 
+    #[derive(Debug)]
+    pub enum ContentSource {
+        Remote(Url),
+        Local(Mashup),
+    }
+
+    impl ContentSource {
+        pub const fn as_local(&self) -> Option<&Mashup> {
+            match self {
+                Self::Local(m) => Some(m),
+                Self::Remote(_) => None,
+            }
+        }
+    }
+
     pub struct Device {
-        pub mashup: Mashup,
+        pub content_source: ContentSource,
         plugins: plugins::PluginsMap,
     }
 
@@ -210,7 +204,7 @@ mod ondisk {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("Device")
                 .field("plugins", &self.plugins.keys())
-                .field("mashup", &self.mashup)
+                .field("content_source", &self.content_source)
                 .finish()
         }
     }
@@ -237,13 +231,22 @@ mod ondisk {
                     ),
                 );
             }
-            devices.insert(
-                id,
-                Device {
-                    mashup: dinfo.mashup.into_resolved_mashup(&plugins)?,
-                    plugins,
-                },
-            );
+            let content_source = match dinfo.mashup {
+                MashupSpec::None(url) => ContentSource::Remote(url),
+                MashupSpec::Single(source) => ContentSource::Local(Mashup::Single(
+                    source.resolve(&plugins).ok_or(Error::UnknownPlugin(source.0))?,
+                )),
+                MashupSpec::LeftRight { left, right } => {
+                    let l = left
+                        .resolve(&plugins)
+                        .ok_or_else(|| Error::UnknownPlugin(left.0.clone()))?;
+                    let r = right
+                        .resolve(&plugins)
+                        .ok_or_else(|| Error::UnknownPlugin(right.0.clone()))?;
+                    ContentSource::Local(Mashup::LeftRight { left: l, right: r })
+                }
+            };
+            devices.insert(id, Device { content_source, plugins });
         }
         Ok(devices)
     }

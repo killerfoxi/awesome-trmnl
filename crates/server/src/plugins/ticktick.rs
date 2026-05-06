@@ -1,4 +1,4 @@
-use std::{ops::Deref, time::Duration};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
@@ -114,6 +114,11 @@ impl Endpoint {
             .join(&format!("project/{}/data", project.id))
             .expect("TickTick API path is always valid")
     }
+
+    #[cfg(test)]
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 impl Default for Endpoint {
@@ -122,14 +127,6 @@ impl Default for Endpoint {
             Url::parse("https://api.ticktick.com/open/v1/")
                 .expect("Hardcoded TickTick URL is always valid"),
         )
-    }
-}
-
-impl Deref for Endpoint {
-    type Target = Url;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -162,10 +159,8 @@ pub struct Client {
 impl Client {
     pub fn new<T: Into<Auth>>(auth: T) -> Result<Self, ClientError> {
         let auth: Auth = auth.into();
-        if let Some(expires) = auth.expires {
-            if expires < Utc::now() {
-                warn!("Token might be expired!");
-            }
+        if auth.expires.is_some_and(|e| e < Utc::now()) {
+            warn!("Token might be expired!");
         }
         let mut token = header::HeaderValue::from_str(&format!("Bearer {}", auth.token))
             .map_err(|_| ClientError::InvalidToken)?;

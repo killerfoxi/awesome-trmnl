@@ -27,32 +27,21 @@ pub enum Error {
 impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
         let target = err.url().map_or_else(String::default, ToString::to_string);
-        if err.is_status() {
-            Self::Fetch {
-                kind: FetchErrorKind::Request(
-                    err.status()
-                        .expect("is_status guarantees a status code is present"),
-                ),
-                target,
-            }
+        let kind = if err.is_status() {
+            FetchErrorKind::Request(
+                err.status()
+                    .expect("is_status guarantees a status code is present"),
+            )
         } else if err.is_connect() {
-            Self::Fetch {
-                kind: FetchErrorKind::Network,
-                target,
-            }
+            FetchErrorKind::Network
         } else if err.is_timeout() {
-            Self::Fetch {
-                kind: FetchErrorKind::Timeout,
-                target,
-            }
+            FetchErrorKind::Timeout
         } else if err.is_decode() {
-            Self::Fetch {
-                kind: FetchErrorKind::InvalidData,
-                target,
-            }
+            FetchErrorKind::InvalidData
         } else {
-            Self::Unknown
-        }
+            return Self::Unknown;
+        };
+        Self::Fetch { kind, target }
     }
 }
 
@@ -125,6 +114,10 @@ impl IntoResponse for SetupError {
     }
 }
 
+pub trait Content {
+    fn generate(&self) -> BoxFuture<'_, Result<Markup, Error>>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,8 +179,4 @@ mod tests {
         let resp = Error::Unknown.into_response();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
-}
-
-pub trait Content {
-    fn generate(&self) -> BoxFuture<'_, Result<Markup, Error>>;
 }
