@@ -7,6 +7,7 @@ use crate::{generator, pages, storage};
 
 pub mod mashup;
 pub mod ticktick;
+pub mod wasm;
 pub mod weather;
 
 #[derive(serde::Deserialize)]
@@ -22,6 +23,12 @@ pub enum PluginConfig {
         detail: Detail,
     },
     TestScreen,
+    Wasm {
+        name: String,
+        path: std::path::PathBuf,
+        #[serde(default)]
+        config: serde_json::Value,
+    },
 }
 
 impl PluginConfig {
@@ -30,6 +37,7 @@ impl PluginConfig {
             Self::Ticktick { .. } => String::from("ticktick"),
             Self::TestScreen => String::from("test"),
             Self::Weather { .. } => String::from("weather"),
+            Self::Wasm { name, .. } => name.clone(),
         }
     }
 }
@@ -43,6 +51,7 @@ pub enum Plugin {
         client: weather::Client,
     },
     TestScreen,
+    Wasm(wasm::WasmPlugin),
 }
 
 impl Plugin {
@@ -54,6 +63,9 @@ impl Plugin {
                 project: project_id.into(),
             }),
             PluginConfig::TestScreen => Ok(Self::TestScreen),
+            PluginConfig::Wasm { name: _, path, config } => {
+                Ok(Self::Wasm(wasm::WasmPlugin::new(path, config)?))
+            }
             PluginConfig::Weather { location, detail } => Ok(Self::Weather {
                 client: weather::Client::new(location, detail)
                     .await
@@ -76,6 +88,7 @@ impl generator::Content for Plugin {
                     .map_err(std::convert::Into::into)
             }),
             Self::Weather { client } => Box::pin(async { client.fetch_and_display().await }),
+            Self::Wasm(plugin) => plugin.generate(),
         }
     }
 }

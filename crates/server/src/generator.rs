@@ -19,6 +19,7 @@ pub enum Error {
         target: String,
     },
     Misconfigured,
+    Wasm(String),
     Unknown,
 }
 
@@ -83,6 +84,10 @@ impl IntoResponse for Error {
                     "Misconfigured plugin",
                     "The plugin can't produce content because it's misconfigured.",
                 ),
+            ),
+            Self::Wasm(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                pages::error("WASM plugin error", msg.as_str()),
             ),
             Self::Unknown => (
                 StatusCode::INTERNAL_SERVER_ERROR,

@@ -54,3 +54,4 @@ pretty_env_logger = "0.5.0"
 rust-embed = { version = "8.11.0", features = ["axum", "mime_guess"] }
 mime_guess = "2.0.5"
 rustls = "0.23.40"
+extism = "1"

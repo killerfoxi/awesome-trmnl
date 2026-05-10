@@ -10,7 +10,7 @@ A self-hosted content server for e-ink displays, heavily inspired by [TRMNL](htt
 
 - **Privacy** — your data stays on your network
 - **Flexibility** — mix and match plugins, or render any URL
-- **Hackability** — written in Rust, easy to extend
+- **Hackability** — written in Rust, easy to extend with WASM plugins
 
 > 💡 **Companion Firmware:** Pair this server with the [ESP32-C6 firmware](https://github.com/killerfoxi/esp32_trmnl_firmware) to build your own TRMNL-like device from scratch.
 
@@ -28,6 +28,7 @@ The project is split into two crates:
 - 📟 **Device API** — devices poll `/api/display` for their next screen image and refresh interval
 - 🌤️ **Weather plugin** — current conditions and forecast via [Open-Meteo](https://open-meteo.com) (with automatic geocoding via OpenStreetMap)
 - ✅ **TickTick plugin** — display tasks from a TickTick project
+- 🧩 **WASM plugins** — drop in any `.wasm` file and configure it in TOML; plugins can fetch external data and return HTML
 - 🧪 **Test screen** — built-in demo layout for quick verification
 - 🎛️ **Mashups** — compose screens as single, left/right split, or external URL passthrough
 - 🖼️ **Web preview** — view any device screen in a browser at `/preview/{id}`
@@ -55,13 +56,13 @@ Create a `devices.toml` file. Each top-level key is a device ID (what your TRMNL
 
 ```toml
 [living-room]
-mashup = { single = { plugin = "weather" } }
+mashup = { single = "weather" }
 
 [[living-room.plugins]]
 weather = { location = "Berlin", detail = "full" }
 
 [desk]
-mashup = { left_right = { left = { plugin = "weather" }, right = { plugin = "ticktick" } } }
+mashup = { left_right = { left = "weather", right = "ticktick" } }
 
 [[desk.plugins]]
 weather = { location = "London", detail = "minimal" }
@@ -72,8 +73,8 @@ ticktick = { project_id = "your-project-id", auth = { token = "your-ticktick-tok
 
 Supported `mashup` variants:
 - `none = "https://example.com"` — proxy an external URL directly
-- `single = { plugin = "..." }` — one plugin fills the screen
-- `left_right = { left = { plugin = "..." }, right = { plugin = "..." } }` — split layout
+- `single = "plugin-name"` — one plugin fills the screen
+- `left_right = { left = "plugin-name", right = "plugin-name" }` — split layout
 
 ### Run
 
@@ -100,6 +101,61 @@ Point your [ESP32-C6 firmware](https://github.com/killerfoxi/esp32_trmnl_firmwar
 | `/content/{id}` | Raw HTML content for device `{id}` |
 | `/preview/{id}` | Browser preview of the device screen |
 | `/assets/*` | Static assets (CSS, etc.) |
+
+## WASM Plugins
+
+You can extend the server with plugins compiled to WebAssembly. Drop a `.wasm` file anywhere accessible and reference it in `devices.toml`:
+
+```toml
+[my-device]
+mashup = { single = "mydata" }
+
+[[my-device.plugins]]
+wasm = { name = "mydata", path = "plugins/mydata.wasm", config = { api_key = "xxx", city = "Zurich" } }
+```
+
+The `name` field is the key used to reference the plugin in `mashup`. The `config` table is arbitrary — it is passed as a JSON object to the plugin's `generate` function.
+
+### Writing a WASM plugin
+
+Plugins must export a `generate` function that receives config as a JSON string and returns HTML. Using the [Extism](https://extism.org) Rust PDK:
+
+```toml
+# Cargo.toml
+[dependencies]
+extism-pdk = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+```
+
+```rust
+use extism_pdk::*;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct Config {
+    api_key: String,
+    city: String,
+}
+
+#[plugin_fn]
+pub fn generate(input: String) -> FnResult<String> {
+    let cfg: Config = serde_json::from_str(&input)?;
+
+    // fetch data from an external API
+    let resp = http::request(
+        &HttpRequest::new(format!("https://api.example.com/data?city={}", cfg.city))
+            .with_header("Authorization", format!("Bearer {}", cfg.api_key)),
+        None::<String>,
+    )?;
+
+    Ok(format!("<html><body>{}</body></html>", resp.body()))
+}
+```
+
+Build it with [cargo-component](https://github.com/bytecodealliance/cargo-component) or the standard Extism toolchain targeting `wasm32-wasip1`.
+
+Plugins can fetch external data via the Extism HTTP host function (`extism_pdk::http::request`). All hosts are permitted by default.
 
 ## Installing as a Systemd Service
 
