@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Awesome TRMNL</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <%- self.inner %>
+</body>
+</html>

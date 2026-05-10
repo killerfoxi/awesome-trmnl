@@ -10,7 +10,8 @@ use axum_server::tls_rustls::RustlsConfig;
 use http::{StatusCode, header};
 use itertools::Itertools;
 use log::{debug, error, info};
-use maud::{Markup, html};
+use axum::response::Html;
+use sailfish::TemplateOnce;
 use rust_embed::Embed;
 use serde::Serialize;
 use tower_http::trace::TraceLayer;
@@ -61,14 +62,7 @@ pub async fn serve(
     log_requests: bool,
 ) -> color_eyre::Result<()> {
     let app = Router::new()
-        .route(
-            "/",
-            get(pages::index(html! {
-                h1 { "Welcome to Awesome TRMNL." }
-                p { "Do you have a TRMNL device? Point it at me." }
-                p { "Or see a " a href="/preview/test" { "test preview" } "."}
-            })),
-        )
+        .route("/", get(pages::home()))
         .route("/content/{id}", get(screen_content))
         .route("/screen/{id}", get(render_screen_img))
         .route("/preview/{id}", get(preview))
@@ -235,20 +229,26 @@ async fn render_screen_img(
 async fn screen_content(
     State(storage): State<Arc<storage::Storage>>,
     device: device::Info,
-) -> axum::response::Result<Markup> {
+) -> axum::response::Result<Html<String>> {
     debug!("Screen content for {} requested", device.id);
     let content = storage
         .content_generator(&device.id)
         .inspect(|_| debug!("Content found"))?;
-    Ok(pages::screen(content.generate().await?))
+    Ok(pages::screen(&content.generate().await?))
+}
+
+#[derive(TemplateOnce)]
+#[template(path = "serve/preview.stpl")]
+struct PreviewTemplate<'a> {
+    image_url: &'a str,
 }
 
 #[allow(clippy::unused_async)]
-async fn preview(_: State<Arc<storage::Storage>>, device: device::Info) -> Markup {
-    pages::index(html! {
-        h1 { "Preview TRMNL screen" }
-        img src=(device.image_url.as_href());
-    })
+async fn preview(_: State<Arc<storage::Storage>>, device: device::Info) -> Html<String> {
+    let inner = PreviewTemplate { image_url: device.image_url.as_href() }
+        .render_once()
+        .expect("preview template render failed");
+    pages::index(&inner)
 }
 
 #[derive(Embed)]

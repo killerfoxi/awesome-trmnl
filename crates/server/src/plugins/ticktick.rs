@@ -2,11 +2,28 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
-use maud::{Markup, html};
 use reqwest::{StatusCode, header, redirect};
+use sailfish::TemplateOnce;
 use url::Url;
 
 use crate::generator;
+
+#[derive(TemplateOnce)]
+#[template(path = "ticktick.stpl")]
+struct ContentTemplate<'a> {
+    tasks: &'a [Task],
+    now: DateTime<Utc>,
+}
+
+fn format_relative(deadline: DateTime<Utc>, now: DateTime<Utc>) -> String {
+    use std::cmp::Ordering;
+    let days = (deadline - now).num_days();
+    match days.cmp(&0) {
+        Ordering::Less => format!("{}d ago", days.abs()),
+        Ordering::Equal => "today".into(),
+        Ordering::Greater => format!("in {days}d"),
+    }
+}
 
 #[derive(Debug)]
 pub enum ClientError {
@@ -189,7 +206,7 @@ impl Client {
         Ok(pd.tasks.into_boxed_slice())
     }
 
-    pub async fn fetch_and_display(&self, project: Project) -> Result<Markup, FetchError> {
+    pub async fn fetch_and_display(&self, project: Project) -> Result<String, FetchError> {
         let now = Utc::now();
         Ok(content(&self.fetch_tasks(project).await?, now))
     }
@@ -265,88 +282,10 @@ pub struct Task {
     priority: Priority,
 }
 
-pub fn content(tasks: &[Task], now: DateTime<Utc>) -> Markup {
-    html! {
-        div ."layout layout--col layout--stretch-x" {
-            (status_bar(tasks.len()))
-            div ."border--h-1" {}
-            div .stretch {
-                (todos(tasks, now))
-            }
-        }
-    }
-}
-
-fn todos(tasks: &[Task], now: DateTime<Utc>) -> Markup {
-    html! {
-        div ."flex flex--left flex--col" {
-            @for task in tasks {
-                (entry(task, now))
-            }
-        }
-    }
-}
-
-fn entry(task: &Task, now: DateTime<Utc>) -> Markup {
-    use std::cmp::Ordering;
-
-    let into_duration = |dl: DateTime<Utc>| {
-        let dur = dl - now;
-        match dur.num_days().cmp(&0) {
-            Ordering::Less => format!("{}d ago", dur.num_days().abs()),
-            Ordering::Equal => "today".into(),
-            Ordering::Greater => format!("in {}d", dur.num_days()),
-        }
-    };
-    let start = task.start_date.map(into_duration);
-    let due = task.due_date.map(into_duration);
-    html! {
-        div .item {
-            div .meta {}
-            div .content {
-                span ."title title--small" { (task.title) }
-                @if !task.content.is_empty() {
-                    span ."description" { (task.content) }
-                }
-                div ."flex flex--row gap" {
-                    span .{(task.priority.icon())} {}
-                    @if let Some(start) = start {
-                        (text_with_icon_and_modifier("schedule", &start, "label--small label--inverted"))
-                    }
-                    @if let Some(due) = due {
-                        (text_with_icon_and_modifier("alarm", &due, "label--small label--inverted"))
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn text_with_icon(icon: &str, text: &str) -> Markup {
-    text_with_icon_and_modifier(icon, text, "")
-}
-
-fn text_with_icon_and_modifier(icon: &str, text: &str, modifier: &str) -> Markup {
-    html! {
-        div ."flex flex--row gap--small" {
-            span ."material-symbols-outlined" { (icon) }
-            span .label .{(modifier)} { (text) }
-        }
-    }
-}
-
-fn status_bar(num_tasks: usize) -> Markup {
-    let now = chrono::offset::Local::now();
-    html! {
-        div ."flex flex--left flex--row" {
-            (text_with_icon("update", &format!("{}", now.format("%Y-%m-%d %H:%M:%S"))))
-            div ."stretch-y" {
-                div ."flex flex--row flex--right gap--medium" {
-                    (text_with_icon("numbers", &num_tasks.to_string()))
-                }
-            }
-        }
-    }
+pub fn content(tasks: &[Task], now: DateTime<Utc>) -> String {
+    ContentTemplate { tasks, now }
+        .render_once()
+        .expect("ticktick template rendering failed")
 }
 
 #[cfg(test)]
@@ -397,15 +336,14 @@ mod tests {
     }
 
     #[test]
-    fn content_renders() {
+    fn content_renders_empty() {
         let now = Utc::now();
-        let markup = content(&[], now);
-        let html = markup.into_string();
+        let html = content(&[], now);
         assert!(html.contains("flex flex--left flex--row"));
     }
 
     #[test]
-    fn entry_renders_task() {
+    fn content_renders_task() {
         let now = Utc::now();
         let task = Task {
             title: "Test".into(),
@@ -414,9 +352,9 @@ mod tests {
             start_date: Some(now),
             priority: Priority::High,
         };
-        let markup = entry(&task, now);
-        let html = markup.into_string();
+        let html = content(&[task], now);
         assert!(html.contains("Test"));
         assert!(html.contains("Details"));
+        assert!(html.contains("iconoir-priority-high"));
     }
 }

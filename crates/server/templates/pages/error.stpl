@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Awesome TRMNL</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <h1><%= self.title %></h1>
+  <p><%= self.details %></p>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<div class="mashup mashup--1Lx1R">
+  <div class="view view--half_vertical">
+    <%- self.left %>
+  </div>
+  <div class="view view--half_vertical">
+    <%- self.right %>
+  </div>
+</div>

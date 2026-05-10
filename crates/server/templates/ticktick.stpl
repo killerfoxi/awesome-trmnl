@@ -1,0 +1,51 @@
+<div class="layout layout--col layout--stretch-x">
+  <div class="flex flex--left flex--row">
+    <div class="flex flex--row gap--small">
+      <span class="material-symbols-outlined">update</span>
+      <span class="label"><%= chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string() %></span>
+    </div>
+    <div class="stretch-y">
+      <div class="flex flex--row flex--right gap--medium">
+        <div class="flex flex--row gap--small">
+          <span class="material-symbols-outlined">numbers</span>
+          <span class="label"><%= self.tasks.len() %></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="border--h-1"></div>
+  <div class="stretch">
+    <div class="flex flex--left flex--col">
+      <% for task in self.tasks { %>
+        <% let start = task.start_date.map(|d| format_relative(d, self.now)); %>
+        <% let due = task.due_date.map(|d| format_relative(d, self.now)); %>
+        <div class="item">
+          <div class="meta"></div>
+          <div class="content">
+            <span class="title title--small"><%= task.title %></span>
+            <% if !task.content.is_empty() { %>
+              <span class="description"><%= task.content %></span>
+            <% } %>
+            <div class="flex flex--row gap">
+              <% if !task.priority.icon().is_empty() { %>
+                <span class="<%= task.priority.icon() %>"></span>
+              <% } %>
+              <% if let Some(start) = &start { %>
+                <div class="flex flex--row gap--small">
+                  <span class="material-symbols-outlined">schedule</span>
+                  <span class="label label--small label--inverted"><%= start %></span>
+                </div>
+              <% } %>
+              <% if let Some(due) = &due { %>
+                <div class="flex flex--row gap--small">
+                  <span class="material-symbols-outlined">alarm</span>
+                  <span class="label label--small label--inverted"><%= due %></span>
+                </div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>

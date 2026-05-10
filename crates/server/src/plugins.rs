@@ -66,7 +66,7 @@ impl Plugin {
 pub type PluginsMap = HashMap<String, Pin<Arc<Plugin>>>;
 
 impl generator::Content for Plugin {
-    fn generate(&self) -> BoxFuture<'_, Result<maud::Markup, generator::Error>> {
+    fn generate(&self) -> BoxFuture<'_, Result<String, generator::Error>> {
         match self {
             Self::TestScreen => Box::pin(async { Ok(pages::test_screen()) }),
             Self::Ticktick { client, project } => Box::pin(async {

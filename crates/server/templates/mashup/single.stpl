@@ -1,0 +1,3 @@
+<div class="view view--full">
+  <%- self.inner %>
+</div>

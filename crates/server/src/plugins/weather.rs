@@ -3,10 +3,32 @@ use std::fmt::Display;
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
 use itertools::izip;
 use log::{debug, error};
-use maud::{Markup, PreEscaped, html};
+use sailfish::TemplateOnce;
 use url::Url;
 
 use crate::generator;
+
+const ICON_SUNRISE: &str = iconify::svg!("wi:sunrise", width = "24px");
+const ICON_STRONG_WIND: &str = iconify::svg!("wi:strong-wind", width = "24px");
+const ICON_THERMOMETER: &str = iconify::svg!("wi:thermometer");
+const ICON_THERMOMETER_24: &str = iconify::svg!("wi:thermometer", width = "24px");
+const ICON_RAINDROPS: &str = iconify::svg!("wi:raindrops", width = "24px");
+const ICON_HOT: &str = iconify::svg!("wi:hot", width = "24px");
+const ICON_RAINDROP: &str = iconify::svg!("wi:raindrop", width = "24px");
+const ICON_CELSIUS: &str = iconify::svg!("wi:celsius", width = "32px");
+const ICON_HUMIDITY: &str = iconify::svg!("wi:humidity", width = "32px");
+
+#[derive(TemplateOnce)]
+#[template(path = "weather/full.stpl")]
+struct FullTemplate<'a> {
+    weather: &'a Weather,
+}
+
+#[derive(TemplateOnce)]
+#[template(path = "weather/minimal.stpl")]
+struct MinimalTemplate<'a> {
+    weather: &'a Weather,
+}
 
 #[derive(serde::Deserialize, Default, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -17,178 +39,10 @@ pub enum Detail {
 }
 
 impl Detail {
-    pub fn produce(&self, weather: &Weather) -> Markup {
+    pub fn produce(&self, weather: &Weather) -> String {
         match self {
-            Self::Minimal => minimal_content(weather),
-            Self::Full => full_content(weather),
-        }
-    }
-}
-
-pub fn full_content(weather: &Weather) -> Markup {
-    html! {
-        div ."view view--full" {
-            div ."layout layout--col gap--space-between" {
-                div ."grid" {
-                    div ."row row--center col--span-3 col--end" {
-                        (weather.current.weather_code.as_img())
-                    }
-                    div ."col col--span-3 col--end" {
-                        div ."item h--full" {
-                            div ."meta" {}
-                            div ."content" {
-                                span ."value value--xxxlarge" data-fit-value="true" { (weather.current.temperature) "°" }
-                                span ."label w--full" {
-                                    (PreEscaped(iconify::svg!("wi:sunrise", width = "24px")))
-                                    (weather.daily[0].sunrise.format("%H:%M"))
-                                }
-                                span ."label w--full" {
-                                    (PreEscaped(iconify::svg!("wi:strong-wind", width = "24px")))
-                                    (weather.daily[0].wind_dir.as_img())
-                                    (weather.daily[0].wind_gusts)
-                                }
-                            }
-                        }
-                    }
-                    div ."col col--span-3 col--end gap--medium" {
-                        div ."item" {
-                            div ."meta" {}
-                            div ."icon" {
-                                (PreEscaped(iconify::svg!("wi:thermometer")))
-                            }
-                            div ."content" {
-                                span ."value value--small" { (weather.current.feels_like) "°" }
-                                span ."label" { "Feels like" }
-                            }
-                        }
-
-                        div ."item" {
-                            div ."meta" {}
-                            div ."icon" {
-                                (PreEscaped(iconify::svg!("wi:raindrops", width = "24px")))
-                            }
-                            div ."content" {
-                                span ."value value--small" { (weather.current.humidity) "%" }
-                                span ."label" { "Humidity" }
-                            }
-                        }
-
-                        div ."item" {
-                            div ."meta" {}
-                            div ."icon" {
-                                (weather.current.weather_code.as_img())
-                            }
-                            div ."content" {
-                                span ."value value--xsmall" { (weather.current.weather_code) }
-                                span ."label" { "Right now" }
-                            }
-                        }
-                    }
-                }
-
-                div ."w-full b-h-gray-5" {}
-
-                div ."grid" {
-                    div ."col gap--large" {
-                    @for (i, day) in weather.daily.iter().enumerate().take(2) {
-                        div ."grid" {
-                        div ."item col--span-3" {
-                            div ."meta" {}
-                            div ."icon" {
-                                (day.weather_code.as_img())
-                            }
-                            div ."content" {
-                            span ."value value--xsmall" { (day.weather_code) }
-                            span ."label" { @if i == 0 { "Today" } @else { "Tomorrow" } }
-                            }
-                        }
-
-                        div ."row col--span-3" {
-                            div ."item" {
-                                div ."meta" {}
-                                div ."row" {
-                                    div ."icon" {
-                                        (PreEscaped(iconify::svg!("wi:hot", width = "24px")))
-                                    }
-
-                                    div ."content w--14" {
-                                        span ."value value--xsmall" { (day.uv_index) }
-                                        span ."label" { "UV" }
-                                    }
-
-                                    div ."icon" style="margin-top: auto; margin-bottom: auto;" {
-                                        (PreEscaped(iconify::svg!("wi:raindrop", width = "24px")))
-                                    }
-
-                                    div ."content w--14" style="justify-content: center" {
-                                        span ."value value--xsmall" { "XX" "mm"}
-                                        span ."label" { "Rain amount"}
-                                    }
-                                }
-                            }
-                        }
-
-                        div ."row col--span-3" {
-                            div ."item" {
-                                div ."meta" {}
-                                div ."icon" {
-                                    (PreEscaped(iconify::svg!("wi:thermometer", width = "24px")))
-                                }
-                                div ."row" {
-                                    div ."content w--20" {
-                                        span ."value value--small" { (day.temperatures.min()) "°"}
-                                        span ."label" { "Min" }
-                                    }
-                                    div ."content w--20" {
-                                        span ."value value--small" { (day.temperatures.max()) "°"}
-                                        span ."label" { "Max" }
-                                    }
-                                }
-                            }
-                        }
-                        }
-                    }
-                    }
-                }
-            }
-        }
-    }
-}
-
-pub fn minimal_content(weather: &Weather) -> Markup {
-    html! {
-        div ."layout layout--col gap--space-between" {
-            div {
-                (weather.current.weather_code.as_img())
-            }
-            div ."grid row--center" {
-                div ."col col--center col--span-2 w--full text--center" {
-                        span ."value value--large" { (weather.current.temperature) }
-                        span ."label w--full" { (PreEscaped(iconify::svg!("wi:celsius", width =  "32px"))) }
-                }
-                div ."col col--center col--span-2 w--full text--center" {
-                        span ."value value--large" { (weather.current.humidity) }
-                        span ."label w--full" { (PreEscaped(iconify::svg!("wi:humidity", width =  "32px"))) }
-                }
-            }
-            div .grid {
-                div ."row row--center gap--medium" {
-                    div .item {
-                        div .meta {}
-                        div .content {
-                            span ."value value--xxsmall" { (weather.daily[0].temperatures.min()) }
-                            span ."description w--auto" { "min" }
-                        }
-                    }
-                    div .item {
-                        div .meta {}
-                        div .content {
-                            span ."value value--xxsmall" { (weather.daily[0].temperatures.max()) }
-                            span ."description w--auto" { "max" }
-                        }
-                    }
-                }
-            }
+            Self::Minimal => MinimalTemplate { weather }.render_once().expect("minimal template render failed"),
+            Self::Full => FullTemplate { weather }.render_once().expect("full template render failed"),
         }
     }
 }
@@ -235,38 +89,20 @@ pub enum WeatherCode {
 }
 
 impl WeatherCode {
-    pub fn as_img(&self) -> Markup {
+    pub fn svg(&self) -> &'static str {
         match self {
-            Self::Unclear => {
-                html! { (PreEscaped(iconify::svg!("wi:stars", width = "96px")))}
-            }
-            Self::Clear => {
-                html! { (PreEscaped(iconify::svg!("wi:day-sunny", width = "96px"))) }
-            }
-            Self::MostlyClear => {
-                html! { (PreEscaped(iconify::svg!("wi:day-sunny-overcast", width = "96px"))) }
-            }
-            Self::PartlyCloudy => {
-                html! { (PreEscaped(iconify::svg!("wi:day-cloudy", width = "96px"))) }
-            }
-            Self::Overcast => {
-                html! { (PreEscaped(iconify::svg!("wi:cloudy", width =  "96px"))) }
-            }
-            Self::Fog => {
-                html! { (PreEscaped(iconify::svg!("wi:day-fog", width = "96px"))) }
-            }
+            Self::Unclear => iconify::svg!("wi:stars", width = "96px"),
+            Self::Clear => iconify::svg!("wi:day-sunny", width = "96px"),
+            Self::MostlyClear => iconify::svg!("wi:day-sunny-overcast", width = "96px"),
+            Self::PartlyCloudy => iconify::svg!("wi:day-cloudy", width = "96px"),
+            Self::Overcast => iconify::svg!("wi:cloudy", width = "96px"),
+            Self::Fog => iconify::svg!("wi:day-fog", width = "96px"),
             Self::DrizzleLight | Self::DrizzleModerate | Self::DrizzleDense => {
-                html! { (PreEscaped(iconify::svg!("wi:day-sprinkle", width = "96px"))) }
+                iconify::svg!("wi:day-sprinkle", width = "96px")
             }
-            Self::RainSlight | Self::RainModerate => {
-                html! { (PreEscaped(iconify::svg!("wi:day-rain", width = "96px"))) }
-            }
-            Self::RainHeavy => {
-                html! { (PreEscaped(iconify::svg!("wi:day-showers", width = "96px"))) }
-            }
-            Self::Thunderstorm => {
-                html! { (PreEscaped(iconify::svg!("wi:day-thunderstorm", width = "96px"))) }
-            }
+            Self::RainSlight | Self::RainModerate => iconify::svg!("wi:day-rain", width = "96px"),
+            Self::RainHeavy => iconify::svg!("wi:day-showers", width = "96px"),
+            Self::Thunderstorm => iconify::svg!("wi:day-thunderstorm", width = "96px"),
         }
     }
 }
@@ -416,32 +252,16 @@ impl From<u16> for WindDirection {
 }
 
 impl WindDirection {
-    pub fn as_img(&self) -> Markup {
+    pub fn svg(&self) -> &'static str {
         match self {
-            Self::NorthWest => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-up-left", width = "24px"))) }
-            }
-            Self::North => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-up", width = "24px"))) }
-            }
-            Self::NorthEast => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-up-right", width = "24px"))) }
-            }
-            Self::East => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-right", width = "24px"))) }
-            }
-            Self::SouthEast => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-down-right", width = "24px"))) }
-            }
-            Self::South => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-down", width = "24px"))) }
-            }
-            Self::SouthWest => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-down-left", width = "24px"))) }
-            }
-            Self::West => {
-                html! { (PreEscaped(iconify::svg!("wi:direction-left", width = "24px"))) }
-            }
+            Self::NorthWest => iconify::svg!("wi:direction-up-left", width = "24px"),
+            Self::North => iconify::svg!("wi:direction-up", width = "24px"),
+            Self::NorthEast => iconify::svg!("wi:direction-up-right", width = "24px"),
+            Self::East => iconify::svg!("wi:direction-right", width = "24px"),
+            Self::SouthEast => iconify::svg!("wi:direction-down-right", width = "24px"),
+            Self::South => iconify::svg!("wi:direction-down", width = "24px"),
+            Self::SouthWest => iconify::svg!("wi:direction-down-left", width = "24px"),
+            Self::West => iconify::svg!("wi:direction-left", width = "24px"),
         }
     }
 }
@@ -623,7 +443,7 @@ impl Client {
             .await
     }
 
-    pub async fn fetch_and_display(&self) -> Result<Markup, generator::Error> {
+    pub async fn fetch_and_display(&self) -> Result<String, generator::Error> {
         let weather = self
             .fetch()
             .await

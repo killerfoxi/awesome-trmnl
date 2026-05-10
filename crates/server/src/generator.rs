@@ -1,7 +1,6 @@
 use axum::response::IntoResponse;
 use futures::future::BoxFuture;
 use http::StatusCode;
-use maud::Markup;
 
 use crate::pages;
 
@@ -115,7 +114,7 @@ impl IntoResponse for SetupError {
 }
 
 pub trait Content {
-    fn generate(&self) -> BoxFuture<'_, Result<Markup, Error>>;
+    fn generate(&self) -> BoxFuture<'_, Result<String, Error>>;
 }
 
 #[cfg(test)]

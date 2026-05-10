@@ -1,8 +1,22 @@
 use std::{pin::Pin, sync::Arc};
 
-use maud::html;
+use sailfish::TemplateOnce;
+
 use super::Plugin;
 use crate::generator;
+
+#[derive(TemplateOnce)]
+#[template(path = "mashup/single.stpl")]
+struct SingleTemplate {
+    inner: String,
+}
+
+#[derive(TemplateOnce)]
+#[template(path = "mashup/left_right.stpl")]
+struct LeftRightTemplate {
+    left: String,
+    right: String,
+}
 
 pub enum Mashup {
     Single(Pin<Arc<Plugin>>),
@@ -22,26 +36,17 @@ impl std::fmt::Debug for Mashup {
 }
 
 impl generator::Content for Mashup {
-    fn generate(&self) -> futures::future::BoxFuture<'_, Result<maud::Markup, generator::Error>> {
+    fn generate(&self) -> futures::future::BoxFuture<'_, Result<String, generator::Error>> {
         match self {
             Self::Single(p) => Box::pin(async {
-                Ok(html! {
-                    div ."view view--full" {
-                        (p.generate().await?)
-                    }
-                })
+                let inner = p.generate().await?;
+                Ok(SingleTemplate { inner }.render_once().expect("mashup single template render failed"))
             }),
             Self::LeftRight { left, right } => Box::pin(async {
-                Ok(html! {
-                    div ."mashup mashup--1Lx1R" {
-                        div ."view view--half_vertical" {
-                            (left.generate().await?)
-                        }
-                        div ."view view--half_vertical" {
-                            (right.generate().await?)
-                        }
-                    }
-                })
+                let (left, right) = tokio::try_join!(left.generate(), right.generate())?;
+                Ok(LeftRightTemplate { left, right }
+                    .render_once()
+                    .expect("mashup left_right template render failed"))
             }),
         }
     }

@@ -1,0 +1,33 @@
+<div class="layout layout--col gap--space-between">
+  <div>
+    <%- self.weather.current.weather_code.svg() %>
+  </div>
+  <div class="grid row--center">
+    <div class="col col--center col--span-2 w--full text--center">
+      <span class="value value--large"><%= self.weather.current.temperature.to_string() %></span>
+      <span class="label w--full"><%- ICON_CELSIUS %></span>
+    </div>
+    <div class="col col--center col--span-2 w--full text--center">
+      <span class="value value--large"><%= self.weather.current.humidity.to_string() %></span>
+      <span class="label w--full"><%- ICON_HUMIDITY %></span>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="row row--center gap--medium">
+      <div class="item">
+        <div class="meta"></div>
+        <div class="content">
+          <span class="value value--xxsmall"><%= self.weather.daily[0].temperatures.min().to_string() %></span>
+          <span class="description w--auto">min</span>
+        </div>
+      </div>
+      <div class="item">
+        <div class="meta"></div>
+        <div class="content">
+          <span class="value value--xxsmall"><%= self.weather.daily[0].temperatures.max().to_string() %></span>
+          <span class="description w--auto">max</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

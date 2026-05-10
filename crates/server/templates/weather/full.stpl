@@ -1,0 +1,102 @@
+<div class="view view--full">
+  <div class="layout layout--col gap--space-between">
+    <div class="grid">
+      <div class="row row--center col--span-3 col--end">
+        <%- self.weather.current.weather_code.svg() %>
+      </div>
+      <div class="col col--span-3 col--end">
+        <div class="item h--full">
+          <div class="meta"></div>
+          <div class="content">
+            <span class="value value--xxxlarge" data-fit-value="true"><%= self.weather.current.temperature.to_string() %>°</span>
+            <span class="label w--full">
+              <%- ICON_SUNRISE %>
+              <%= self.weather.daily[0].sunrise.format("%H:%M").to_string() %>
+            </span>
+            <span class="label w--full">
+              <%- ICON_STRONG_WIND %>
+              <%- self.weather.daily[0].wind_dir.svg() %>
+              <%= self.weather.daily[0].wind_gusts %>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="col col--span-3 col--end gap--medium">
+        <div class="item">
+          <div class="meta"></div>
+          <div class="icon"><%- ICON_THERMOMETER %></div>
+          <div class="content">
+            <span class="value value--small"><%= self.weather.current.feels_like.to_string() %>°</span>
+            <span class="label">Feels like</span>
+          </div>
+        </div>
+        <div class="item">
+          <div class="meta"></div>
+          <div class="icon"><%- ICON_RAINDROPS %></div>
+          <div class="content">
+            <span class="value value--small"><%= self.weather.current.humidity.to_string() %>%</span>
+            <span class="label">Humidity</span>
+          </div>
+        </div>
+        <div class="item">
+          <div class="meta"></div>
+          <div class="icon"><%- self.weather.current.weather_code.svg() %></div>
+          <div class="content">
+            <span class="value value--xsmall"><%= self.weather.current.weather_code.to_string() %></span>
+            <span class="label">Right now</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="w-full b-h-gray-5"></div>
+    <div class="grid">
+      <div class="col gap--large">
+        <% for (i, day) in self.weather.daily.iter().enumerate().take(2) { %>
+          <div class="grid">
+            <div class="item col--span-3">
+              <div class="meta"></div>
+              <div class="icon"><%- day.weather_code.svg() %></div>
+              <div class="content">
+                <span class="value value--xsmall"><%= day.weather_code.to_string() %></span>
+                <span class="label"><% if i == 0 { %>Today<% } else { %>Tomorrow<% } %></span>
+              </div>
+            </div>
+            <div class="row col--span-3">
+              <div class="item">
+                <div class="meta"></div>
+                <div class="row">
+                  <div class="icon"><%- ICON_HOT %></div>
+                  <div class="content w--14">
+                    <span class="value value--xsmall"><%= day.uv_index %></span>
+                    <span class="label">UV</span>
+                  </div>
+                  <div class="icon" style="margin-top: auto; margin-bottom: auto;"><%- ICON_RAINDROP %></div>
+                  <div class="content w--14" style="justify-content: center">
+                    <span class="value value--xsmall">XX mm</span>
+                    <span class="label">Rain amount</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row col--span-3">
+              <div class="item">
+                <div class="meta"></div>
+                <div class="icon"><%- ICON_THERMOMETER_24 %></div>
+                <div class="row">
+                  <div class="content w--20">
+                    <span class="value value--small"><%= day.temperatures.min().to_string() %>°</span>
+                    <span class="label">Min</span>
+                  </div>
+                  <div class="content w--20">
+                    <span class="value value--small"><%= day.temperatures.max().to_string() %>°</span>
+                    <span class="label">Max</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
