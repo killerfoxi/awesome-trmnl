@@ -108,7 +108,7 @@ impl Instance {
     pub async fn new(user_dir: Option<PathBuf>) -> Result<Self, Error> {
         let mut config = BrowserConfig::builder()
             .new_headless_mode()
-            .window_size(800, 480)
+            .window_size(1600, 960)
             .arg("--use-skia-font-manager")
             .arg("--disable-partial-raster")
             .arg("--disable-skia-runtime-opts")
@@ -116,7 +116,7 @@ impl Instance {
             .arg("--font-render-hinting=none")
             .arg("--disable-lcd-text")
             .arg("--disable-font-subpixel-positioning")
-            .arg("--force-device-scale-factor=1")
+            .arg("--force-device-scale-factor=2")
             .arg("--use-gl=angle")
             .arg("--use-angle=swiftshader")
             .arg("--enable-unsafe-swiftshader")
@@ -170,7 +170,11 @@ impl Instance {
             image::ImageFormat::Png,
         )?;
         self.browser.dispose_browser_context(context).await?;
-        Ok(RenderedImage::from(img))
+        Ok(RenderedImage::from(img.resize_exact(
+            800,
+            480,
+            image::imageops::FilterType::Lanczos3,
+        )))
     }
 }
 
