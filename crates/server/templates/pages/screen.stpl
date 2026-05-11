@@ -32,6 +32,9 @@
     .trmnl .row > * {
       transform: translateZ(0);
     }
+    .trmnl .value {
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body class="environment trmnl">
