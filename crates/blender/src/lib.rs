@@ -114,6 +114,8 @@ impl Instance {
             .arg("--disable-skia-runtime-opts")
             .arg("--deterministic-mode")
             .arg("--font-render-hinting=none")
+            .arg("--disable-lcd-text")
+            .arg("--disable-font-subpixel-positioning")
             .arg("--force-device-scale-factor=1")
             .arg("--use-gl=angle")
             .arg("--use-angle=swiftshader")
@@ -168,7 +170,7 @@ impl Instance {
             image::ImageFormat::Png,
         )?;
         self.browser.dispose_browser_context(context).await?;
-        Ok(RenderedImage::from(img.unsharpen(1.5, 112)))
+        Ok(RenderedImage::from(img))
     }
 }
 

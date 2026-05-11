@@ -7,6 +7,32 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;350;375;400;450;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --value-font-smoothing: antialiased;
+      --label-large-font-smoothing: antialiased;
+      --label-xlarge-font-smoothing: antialiased;
+      --label-xxlarge-font-smoothing: antialiased;
+      --richtext-xlarge-font-smoothing: antialiased;
+      --richtext-xxlarge-font-smoothing: antialiased;
+      --richtext-xxxlarge-font-smoothing: antialiased;
+      --description-xlarge-font-smoothing: antialiased;
+      --description-xxlarge-font-smoothing: antialiased;
+      --title-large-font-smoothing: antialiased;
+      --title-xlarge-font-smoothing: antialiased;
+      --title-xxlarge-font-smoothing: antialiased;
+      --font-xlarge-font-smoothing: antialiased;
+      --font-xxlarge-font-smoothing: antialiased;
+      --font-xxxlarge-font-smoothing: antialiased;
+      --font-mega-font-smoothing: antialiased;
+      --font-giga-font-smoothing: antialiased;
+      --font-tera-font-smoothing: antialiased;
+      --font-peta-font-smoothing: antialiased;
+    }
+    .trmnl .row > * {
+      transform: translateZ(0);
+    }
+  </style>
 </head>
 <body class="environment trmnl">
   <div class="screen">
