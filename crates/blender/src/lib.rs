@@ -13,17 +13,22 @@ use std::{
 
 use chromiumoxide::{
     Browser, BrowserConfig,
-    cdp::browser_protocol::{
-        security::SetIgnoreCertificateErrorsParams,
-        target::{CreateBrowserContextParams, CreateTargetParams},
+    cdp::{
+        browser_protocol::{
+            browser::BrowserContextId,
+            page::CaptureScreenshotFormat,
+            security::SetIgnoreCertificateErrorsParams,
+            target::{CreateBrowserContextParams, CreateTargetParams},
+        },
+        js_protocol::runtime::EvaluateParams,
     },
     error::CdpError,
 };
 use futures::stream::StreamExt;
 use image::load_from_memory_with_format;
-use log::{debug, error};
+use log::{debug, error, warn};
 use thiserror::Error;
-use tokio::task::JoinHandle;
+use tokio::{sync::RwLock, task::JoinHandle};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -37,6 +42,8 @@ pub enum Error {
     InvalidUrl(#[source] url::ParseError),
     #[error("Not found")]
     NotFound,
+    #[error("Rendering did not complete within {RENDER_TIMEOUT:?}")]
+    Timeout,
     #[error("Image processing error")]
     Image,
     #[error("{0}")]
@@ -102,16 +109,24 @@ impl From<image::DynamicImage> for RenderedImage {
     }
 }
 
-pub struct Instance {
+/// Upper bound for a whole render (navigation, settling, screenshot). Also
+/// the backstop that frees the request if the browser stops responding.
+const RENDER_TIMEOUT: Duration = Duration::from_secs(30);
+const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
+/// Grace period after the load event for scripts that draw asynchronously
+/// (e.g. charts) before the screenshot is taken.
+const SETTLE_DELAY: Duration = Duration::from_millis(200);
+
+struct BrowserState {
     browser: Browser,
-    _event_handle: JoinHandle<()>,
+    event_task: JoinHandle<()>,
 }
 
-impl Instance {
-    pub async fn new(user_dir: Option<PathBuf>) -> Result<Self, Error> {
+impl BrowserState {
+    async fn launch(user_dir: Option<PathBuf>) -> Result<Self, Error> {
         let mut config = BrowserConfig::builder()
             .new_headless_mode()
-            .window_size(1600, 960)
+            .window_size(800, 480)
             .arg("--use-skia-font-manager")
             .arg("--disable-partial-raster")
             .arg("--disable-skia-runtime-opts")
@@ -119,7 +134,6 @@ impl Instance {
             .arg("--font-render-hinting=none")
             .arg("--disable-lcd-text")
             .arg("--disable-font-subpixel-positioning")
-            .arg("--force-device-scale-factor=2")
             .arg("--use-gl=angle")
             .arg("--use-angle=swiftshader")
             .arg("--enable-unsafe-swiftshader")
@@ -127,12 +141,14 @@ impl Instance {
             .arg("--ignore-certificate-errors")
             .arg("--test-type")
             .arg("--disable-gpu")
+            .arg("--disable-dev-shm-usage")
+            .arg("--hide-scrollbars")
             .build()
             .map_err(Error::Setup)?;
         config.user_data_dir = user_dir;
         let (browser, mut handler) = Browser::launch(config).await?;
 
-        let handle = tokio::task::spawn(async move {
+        let event_task = tokio::task::spawn(async move {
             while let Some(e) = handler.next().await {
                 debug!("Got event: {e:?}");
             }
@@ -144,41 +160,125 @@ impl Instance {
 
         Ok(Self {
             browser,
-            _event_handle: handle,
+            event_task,
+        })
+    }
+
+    async fn is_responsive(&self) -> bool {
+        tokio::time::timeout(HEALTH_CHECK_TIMEOUT, self.browser.version())
+            .await
+            .is_ok_and(|version| version.is_ok())
+    }
+
+    async fn shutdown(&mut self) {
+        if let Some(Err(e)) = self.browser.kill().await {
+            warn!("Failed to kill browser process: {e}");
+        }
+        self.event_task.abort();
+    }
+}
+
+pub struct Instance {
+    state: RwLock<BrowserState>,
+    user_dir: Option<PathBuf>,
+}
+
+impl Instance {
+    pub async fn new(user_dir: Option<PathBuf>) -> Result<Self, Error> {
+        Ok(Self {
+            state: RwLock::new(BrowserState::launch(user_dir.clone()).await?),
+            user_dir,
         })
     }
 
     pub async fn render(&self, url: &str) -> Result<RenderedImage, Error> {
-        let context = self
+        match self.try_render(url).await {
+            Err(err) if !self.is_responsive().await => {
+                warn!("Browser is unresponsive after a failed render ({err}); relaunching");
+                self.relaunch().await?;
+                self.try_render(url).await
+            }
+            result => result,
+        }
+    }
+
+    async fn is_responsive(&self) -> bool {
+        self.state.read().await.is_responsive().await
+    }
+
+    /// Replaces a dead browser with a fresh one. In-flight renders (read
+    /// locks) finish first; concurrent relaunch attempts collapse into one.
+    async fn relaunch(&self) -> Result<(), Error> {
+        let mut state = self.state.write().await;
+        if state.is_responsive().await {
+            return Ok(());
+        }
+        // The old process must be gone before launching: two browsers cannot
+        // share one user data directory. If the launch fails, the dead state
+        // stays in place and the next render triggers another relaunch.
+        state.shutdown().await;
+        *state = BrowserState::launch(self.user_dir.clone()).await?;
+        drop(state);
+        Ok(())
+    }
+
+    async fn try_render(&self, url: &str) -> Result<RenderedImage, Error> {
+        let state = self.state.read().await;
+        let context = state
             .browser
             .create_browser_context(CreateBrowserContextParams::default())
             .await?;
-        let screen = self
-            .browser
-            .new_page(
-                CreateTargetParams::builder()
-                    .url(url)
-                    .browser_context_id(context.clone())
-                    .build()?,
-            )
-            .await?;
-        tokio::time::sleep(Duration::from_millis(1300)).await;
-        let element = screen.find_element("html").await?;
-        let img = load_from_memory_with_format(
-            &element
-                .screenshot(
-                    chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat::Png,
-                )
-                .await?,
-            image::ImageFormat::Png,
-        )?;
-        self.browser.dispose_browser_context(context).await?;
-        Ok(RenderedImage::from(img.resize_exact(
-            800,
-            480,
-            image::imageops::FilterType::Lanczos3,
-        )))
+        let result = tokio::time::timeout(
+            RENDER_TIMEOUT,
+            render_in_context(&state.browser, &context, url),
+        )
+        .await;
+        // Dispose unconditionally: a leaked context keeps its page alive in
+        // the browser forever, degrading it a little more with every failure.
+        if let Err(e) = state.browser.dispose_browser_context(context).await {
+            warn!("Failed to dispose browser context: {e}");
+        }
+        drop(state);
+        result.map_err(|_| Error::Timeout)?
     }
+}
+
+async fn render_in_context(
+    browser: &Browser,
+    context: &BrowserContextId,
+    url: &str,
+) -> Result<RenderedImage, Error> {
+    let page = browser
+        .new_page(
+            CreateTargetParams::builder()
+                .url(url)
+                .browser_context_id(context.clone())
+                .build()?,
+        )
+        .await?;
+    page.wait_for_navigation().await?;
+    page.evaluate(await_promise("document.fonts.ready")).await?;
+    tokio::time::sleep(SETTLE_DELAY).await;
+    // Two rAFs guarantee the frame produced after settling has been painted.
+    page.evaluate(await_promise(
+        "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+    ))
+    .await?;
+    let element = page.find_element("html").await?;
+    let img = load_from_memory_with_format(
+        &element.screenshot(CaptureScreenshotFormat::Png).await?,
+        image::ImageFormat::Png,
+    )?;
+    debug!("Rendered {}x{} image for {url}", img.width(), img.height());
+    Ok(RenderedImage::from(img))
+}
+
+fn await_promise(expression: &str) -> EvaluateParams {
+    EvaluateParams::builder()
+        .expression(expression)
+        .await_promise(true)
+        .build()
+        .expect("Hardcoded evaluation only needs an expression, which is set")
 }
 
 #[cfg(test)]

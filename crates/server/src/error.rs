@@ -81,6 +81,7 @@ impl IntoCanonical for blender::Error {
             | Self::InvalidUrl(_)
             | Self::Image => Canonical::Internal,
             Self::NotFound => Canonical::NotFound,
+            Self::Timeout => Canonical::DeadlineExceeded,
         }
     }
 }
@@ -93,6 +94,12 @@ mod tests {
     fn blender_not_found_into_canonical() {
         let err = blender::Error::NotFound;
         assert!(matches!(err.into_canonical(), Canonical::NotFound));
+    }
+
+    #[test]
+    fn blender_timeout_into_canonical() {
+        let err = blender::Error::Timeout;
+        assert!(matches!(err.into_canonical(), Canonical::DeadlineExceeded));
     }
 
     #[test]
