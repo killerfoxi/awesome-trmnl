@@ -25,20 +25,29 @@ fn format_relative(deadline: DateTime<Utc>, now: DateTime<Utc>) -> String {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ClientError {
+    #[error("the provided token is not a valid header value")]
     InvalidToken,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum FetchErrorKind {
+    #[error("the request timed out")]
     Timeout,
+    #[error("a connection error occurred")]
     Connection,
+    #[error("the request was invalid")]
     InvalidRequest,
+    #[error("permission was denied")]
     PermissionDenied,
+    #[error("the resource was not found")]
     NotFound,
+    #[error("authentication failed")]
     Unauthenticated,
+    #[error("the response was not valid JSON")]
     Json,
+    #[error("an unexpected error occurred")]
     Other,
 }
 
@@ -67,7 +76,8 @@ impl From<reqwest::Error> for FetchErrorKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("fetching {} failed: {kind}", target.as_ref().map_or("<unknown>", Url::as_str))]
 pub struct FetchError {
     pub kind: FetchErrorKind,
     pub target: Option<Url>,
@@ -261,7 +271,7 @@ impl From<i32> for Priority {
 }
 
 impl Priority {
-    pub const fn icon(&self) -> &str {
+    pub const fn icon(&self) -> &'static str {
         match self {
             Self::Medium => "iconoir-priority-medium",
             Self::High => "iconoir-priority-high",
@@ -332,7 +342,10 @@ mod tests {
     fn endpoint_for_project_data() {
         let ep = Endpoint::default();
         let url = ep.for_project_data(&Project::from("proj123".to_string()));
-        assert_eq!(url.as_str(), "https://api.ticktick.com/open/v1/project/proj123/data");
+        assert_eq!(
+            url.as_str(),
+            "https://api.ticktick.com/open/v1/project/proj123/data"
+        );
     }
 
     #[test]

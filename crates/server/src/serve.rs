@@ -1,5 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
+use axum::response::Html;
 use axum::{
     Json, Router,
     extract::{FromRef, Path, State},
@@ -10,9 +11,8 @@ use axum_server::tls_rustls::RustlsConfig;
 use http::{StatusCode, header};
 use itertools::Itertools;
 use log::{debug, error, info};
-use axum::response::Html;
-use sailfish::TemplateOnce;
 use rust_embed::Embed;
+use sailfish::TemplateOnce;
 use serde::Serialize;
 use tower_http::trace::TraceLayer;
 use url::Url;
@@ -52,7 +52,7 @@ impl ImageType {
 }
 
 pub async fn embedded_assets(Path(file): Path<String>) -> impl IntoResponse {
-    EmbededFile(file)
+    EmbeddedFile(file)
 }
 
 pub async fn serve(
@@ -138,7 +138,9 @@ mod tests {
         let mut headers = header::HeaderMap::new();
         headers.insert(
             http::header::ACCEPT,
-            "image/png".parse().expect("Hardcoded header value is valid"),
+            "image/png"
+                .parse()
+                .expect("Hardcoded header value is valid"),
         );
         assert!(matches!(determine_image_type(&headers), ImageType::Png));
     }
@@ -148,7 +150,9 @@ mod tests {
         let mut headers = header::HeaderMap::new();
         headers.insert(
             http::header::ACCEPT,
-            "image/qoi".parse().expect("Hardcoded header value is valid"),
+            "image/qoi"
+                .parse()
+                .expect("Hardcoded header value is valid"),
         );
         assert!(matches!(determine_image_type(&headers), ImageType::Qoi));
     }
@@ -167,13 +171,13 @@ mod tests {
 
     #[test]
     fn embedded_file_known_asset() {
-        let response = EmbededFile("style.css").into_response();
+        let response = EmbeddedFile("style.css").into_response();
         assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[test]
     fn embedded_file_unknown_asset() {
-        let response = EmbededFile("does_not_exist.css").into_response();
+        let response = EmbeddedFile("does_not_exist.css").into_response();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }
@@ -245,9 +249,11 @@ struct PreviewTemplate<'a> {
 
 #[allow(clippy::unused_async)]
 async fn preview(_: State<Arc<storage::Storage>>, device: device::Info) -> Html<String> {
-    let inner = PreviewTemplate { image_url: device.image_url.as_href() }
-        .render_once()
-        .expect("preview template render failed");
+    let inner = PreviewTemplate {
+        image_url: device.image_url.as_href(),
+    }
+    .render_once()
+    .expect("preview template render failed");
     pages::index(&inner)
 }
 
@@ -255,9 +261,9 @@ async fn preview(_: State<Arc<storage::Storage>>, device: device::Info) -> Html<
 #[folder = "assets/"]
 struct Assets;
 
-pub struct EmbededFile<T>(pub T);
+pub struct EmbeddedFile<T>(pub T);
 
-impl<T> IntoResponse for EmbededFile<T>
+impl<T> IntoResponse for EmbeddedFile<T>
 where
     T: Into<String>,
 {

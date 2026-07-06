@@ -1,6 +1,9 @@
 #![warn(tail_expr_drop_order, clippy::nursery)]
 #![deny(clippy::pedantic)]
-#![allow(clippy::missing_errors_doc, reason = "Error variants are self-describing")]
+#![allow(
+    clippy::missing_errors_doc,
+    reason = "Error variants are self-describing"
+)]
 
 use std::{
     io::{Seek, Write},
@@ -28,10 +31,10 @@ pub enum Error {
     Setup(String),
     #[error("Could not create browser context")]
     CouldNotCreateContext,
-    #[error("Internal render error: {0}")]
-    InternalRender(CdpError),
-    #[error("Invalid URL: {0}")]
-    InvalidUrl(url::ParseError),
+    #[error("Internal render error")]
+    InternalRender(#[source] CdpError),
+    #[error("Invalid URL")]
+    InvalidUrl(#[source] url::ParseError),
     #[error("Not found")]
     NotFound,
     #[error("Image processing error")]
@@ -137,7 +140,7 @@ impl Instance {
         browser
             .execute(SetIgnoreCertificateErrorsParams::new(true))
             .await
-            .map_err(|e| Error::InternalRender(e))?;
+            .map_err(Error::InternalRender)?;
 
         Ok(Self {
             browser,

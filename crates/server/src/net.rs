@@ -61,7 +61,12 @@ mod tests {
 
     #[tokio::test]
     async fn retry_succeeds_first_try() {
-        let result: Result<i32, RetryableError> = retry(|| async { Ok(42) }, Duration::from_millis(10), Duration::from_secs(1)).await;
+        let result: Result<i32, RetryableError> = retry(
+            || async { Ok(42) },
+            Duration::from_millis(10),
+            Duration::from_secs(1),
+        )
+        .await;
         assert_eq!(result.expect("Retry should succeed"), 42);
     }
 
@@ -71,11 +76,7 @@ mod tests {
         let result: Result<i32, RetryableError> = retry(
             || async {
                 let c = count.fetch_add(1, Ordering::SeqCst);
-                if c < 2 {
-                    Err(RetryableError)
-                } else {
-                    Ok(42)
-                }
+                if c < 2 { Err(RetryableError) } else { Ok(42) }
             },
             Duration::from_millis(10),
             Duration::from_secs(1),
@@ -87,7 +88,12 @@ mod tests {
 
     #[tokio::test]
     async fn retry_fails_non_retryable() {
-        let result: Result<(), FatalError> = retry(|| async { Err(FatalError) }, Duration::from_millis(10), Duration::from_secs(1)).await;
+        let result: Result<(), FatalError> = retry(
+            || async { Err(FatalError) },
+            Duration::from_millis(10),
+            Duration::from_secs(1),
+        )
+        .await;
         assert!(result.is_err());
     }
 

@@ -1,25 +1,34 @@
 use axum::response::IntoResponse;
 use futures::future::BoxFuture;
 use http::StatusCode;
+use thiserror::Error;
 
 use crate::pages;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum FetchErrorKind {
+    #[error("upstream responded with {0}")]
     Request(StatusCode),
+    #[error("a network error occurred")]
     Network,
+    #[error("the request timed out")]
     Timeout,
+    #[error("the response contained invalid data")]
     InvalidData,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("fetching from {target} failed: {kind}")]
     Fetch {
         kind: FetchErrorKind,
         target: String,
     },
+    #[error("the plugin is misconfigured")]
     Misconfigured,
+    #[error("WASM plugin error: {0}")]
     Wasm(String),
+    #[error("an unknown error occurred")]
     Unknown,
 }
 
@@ -98,8 +107,9 @@ impl IntoResponse for Error {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SetupError {
+    #[error("content requires additional setup before it can be used")]
     Missing,
 }
 

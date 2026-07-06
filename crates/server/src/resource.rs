@@ -1,10 +1,13 @@
 use std::{borrow::Borrow, str::FromStr, sync::OnceLock};
 
+use thiserror::Error;
 use url::Url;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("the value is not a valid resource URL")]
     InvalidFormat,
+    #[error("the URL scheme is not supported")]
     Unsupported,
 }
 
@@ -94,10 +97,7 @@ pub fn init_self(port: u16, ssl: bool) {
 }
 
 pub fn self_url() -> Url {
-    SELF_URL
-        .get()
-        .expect("Self URL not initialized")
-        .clone()
+    SELF_URL.get().expect("Self URL not initialized").clone()
 }
 
 static SELF_URL: OnceLock<Url> = OnceLock::new();
@@ -130,9 +130,7 @@ mod tests {
 
     #[test]
     fn parse_local_explicit() {
-        let res: Resource = "local:/screen/xyz"
-            .parse()
-            .expect("Hardcoded URL is valid");
+        let res: Resource = "local:/screen/xyz".parse().expect("Hardcoded URL is valid");
         assert!(matches!(res, Resource::Local(url) if url.as_str() == "local:/screen/xyz"));
     }
 
@@ -168,7 +166,9 @@ mod tests {
         let res = Resource::self_hosted_content("d1")
             .into_remote(&base)
             .expect("Conversion succeeds");
-        assert!(matches!(res, Resource::Remote(url) if url.as_str() == "https://localhost:8080/content/d1"));
+        assert!(
+            matches!(res, Resource::Remote(url) if url.as_str() == "https://localhost:8080/content/d1")
+        );
     }
 
     #[test]
@@ -197,7 +197,11 @@ mod tests {
 
     #[test]
     fn as_href_local() {
-        let res = Resource::Local("local:/content/abc".parse().expect("Hardcoded URL is valid"));
+        let res = Resource::Local(
+            "local:/content/abc"
+                .parse()
+                .expect("Hardcoded URL is valid"),
+        );
         assert_eq!(res.as_href(), "/content/abc");
     }
 

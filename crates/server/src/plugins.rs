@@ -1,4 +1,4 @@
-use std::{collections::HashMap, pin::Pin, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use futures::future::BoxFuture;
 use weather::Detail;
@@ -63,9 +63,11 @@ impl Plugin {
                 project: project_id.into(),
             }),
             PluginConfig::TestScreen => Ok(Self::TestScreen),
-            PluginConfig::Wasm { name: _, path, config } => {
-                Ok(Self::Wasm(wasm::WasmPlugin::new(path, config)?))
-            }
+            PluginConfig::Wasm {
+                name: _,
+                path,
+                config,
+            } => Ok(Self::Wasm(wasm::WasmPlugin::new(path, config)?)),
             PluginConfig::Weather { location, detail } => Ok(Self::Weather {
                 client: weather::Client::new(location, detail)
                     .await
@@ -75,7 +77,7 @@ impl Plugin {
     }
 }
 
-pub type PluginsMap = HashMap<String, Pin<Arc<Plugin>>>;
+pub type PluginsMap = HashMap<String, Arc<Plugin>>;
 
 impl generator::Content for Plugin {
     fn generate(&self) -> BoxFuture<'_, Result<String, generator::Error>> {
@@ -85,7 +87,7 @@ impl generator::Content for Plugin {
                 client
                     .fetch_and_display(project.clone())
                     .await
-                    .map_err(std::convert::Into::into)
+                    .map_err(Into::into)
             }),
             Self::Weather { client } => Box::pin(async { client.fetch_and_display().await }),
             Self::Wasm(plugin) => plugin.generate(),
@@ -125,6 +127,4 @@ mod tests {
             .expect("Failed to create test screen plugin");
         assert!(matches!(plugin, Plugin::TestScreen));
     }
-
-
 }

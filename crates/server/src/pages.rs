@@ -25,15 +25,27 @@ struct ErrorTemplate<'a> {
 struct TestScreenTemplate;
 
 pub fn index(inner: &str) -> Html<String> {
-    Html(IndexTemplate { inner }.render_once().expect("index template render failed"))
+    Html(
+        IndexTemplate { inner }
+            .render_once()
+            .expect("index template render failed"),
+    )
 }
 
 pub fn screen(inner: &str) -> Html<String> {
-    Html(ScreenTemplate { inner }.render_once().expect("screen template render failed"))
+    Html(
+        ScreenTemplate { inner }
+            .render_once()
+            .expect("screen template render failed"),
+    )
 }
 
 pub fn error(title: &str, details: &str) -> Html<String> {
-    Html(ErrorTemplate { title, details }.render_once().expect("error template render failed"))
+    Html(
+        ErrorTemplate { title, details }
+            .render_once()
+            .expect("error template render failed"),
+    )
 }
 
 pub fn not_found(details: &str) -> Html<String> {
@@ -49,7 +61,9 @@ pub fn internal_error(details: &str) -> Html<String> {
 }
 
 pub fn test_screen() -> String {
-    TestScreenTemplate.render_once().expect("test_screen template render failed")
+    TestScreenTemplate
+        .render_once()
+        .expect("test_screen template render failed")
 }
 
 pub fn home() -> Html<String> {

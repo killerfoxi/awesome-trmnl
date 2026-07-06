@@ -86,7 +86,9 @@ plugins = []
 
         let device = storage.device_by_id("mydevice").expect("Device not found");
         assert_eq!(device.id, "mydevice");
-        assert!(matches!(device.content_resource, Resource::Remote(ref url) if url.as_str() == "https://example.com/screen"));
+        assert!(
+            matches!(device.content_resource, Resource::Remote(ref url) if url.as_str() == "https://example.com/screen")
+        );
     }
 
     #[tokio::test]
@@ -129,39 +131,34 @@ plugins = []
 }
 
 mod ondisk {
-    use std::{collections::HashMap, fmt::Debug, fs, path::PathBuf, pin::Pin, sync::Arc};
+    use std::{collections::HashMap, fmt::Debug, fs, path::PathBuf, sync::Arc};
 
     use log::error;
     use url::Url;
 
     use crate::plugins::{self, PluginsMap, mashup::Mashup};
 
-    #[derive(Debug)]
+    #[derive(Debug, thiserror::Error)]
     pub enum Error {
-        NotFound,
+        #[error("failed to read the device file at {path}")]
+        Read {
+            path: PathBuf,
+            #[source]
+            source: std::io::Error,
+        },
+        #[error("the device file was loaded, but contained invalid data")]
         InvalidConfig,
-        LoadConfig(toml::de::Error),
+        #[error("the device file is not valid TOML")]
+        LoadConfig(#[from] toml::de::Error),
+        #[error("unknown plugin: {0}")]
         UnknownPlugin(String),
-    }
-
-    impl std::fmt::Display for Error {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                Self::NotFound => write!(f, "The device file was not found"),
-                Self::InvalidConfig => {
-                    write!(f, "The device file was loaded, but contained invalid data.")
-                }
-                Self::LoadConfig(error) => write!(f, "{error}"),
-                Self::UnknownPlugin(name) => write!(f, "Unknown plugin: {name}"),
-            }
-        }
     }
 
     #[derive(Debug, serde::Deserialize)]
     pub struct Plugin(String);
 
     impl Plugin {
-        pub fn resolve(&self, plugins: &PluginsMap) -> Option<Pin<Arc<plugins::Plugin>>> {
+        pub fn resolve(&self, plugins: &PluginsMap) -> Option<Arc<plugins::Plugin>> {
             plugins.get(&self.0).cloned()
         }
     }
@@ -210,13 +207,11 @@ mod ondisk {
     }
 
     pub async fn load_local(path: Option<PathBuf>) -> Result<HashMap<String, Device>, Error> {
-        let cfg = fs::read_to_string(path.unwrap_or_else(|| {
-            PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/devices.toml"))
-        }))
-        .map_err(|_| Error::NotFound)?;
-        let toml: HashMap<String, DeviceConfig> = toml::from_str(&cfg)
-            .inspect_err(|e| error!("{e}"))
-            .map_err(Error::LoadConfig)?;
+        let path = path
+            .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/devices.toml")));
+        let cfg = fs::read_to_string(&path).map_err(|source| Error::Read { path, source })?;
+        let toml: HashMap<String, DeviceConfig> =
+            toml::from_str(&cfg).inspect_err(|e| error!("{e}"))?;
         let mut devices = HashMap::new();
         for (id, dinfo) in toml {
             let mut plugins = HashMap::new();
@@ -224,7 +219,7 @@ mod ondisk {
                 let plugin = pluginspec.to_key();
                 plugins.insert(
                     plugin.clone(),
-                    Arc::pin(
+                    Arc::new(
                         plugins::Plugin::new(pluginspec)
                             .await
                             .inspect_err(|_| error!("Creating {plugin} for {id} failed"))?,
@@ -234,7 +229,9 @@ mod ondisk {
             let content_source = match dinfo.mashup {
                 MashupSpec::None(url) => ContentSource::Remote(url),
                 MashupSpec::Single(source) => ContentSource::Local(Mashup::Single(
-                    source.resolve(&plugins).ok_or(Error::UnknownPlugin(source.0))?,
+                    source
+                        .resolve(&plugins)
+                        .ok_or(Error::UnknownPlugin(source.0))?,
                 )),
                 MashupSpec::LeftRight { left, right } => {
                     let l = left
@@ -246,7 +243,13 @@ mod ondisk {
                     ContentSource::Local(Mashup::LeftRight { left: l, right: r })
                 }
             };
-            devices.insert(id, Device { content_source, plugins });
+            devices.insert(
+                id,
+                Device {
+                    content_source,
+                    plugins,
+                },
+            );
         }
         Ok(devices)
     }

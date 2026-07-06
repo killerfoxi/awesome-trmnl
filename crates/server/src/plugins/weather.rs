@@ -41,16 +41,23 @@ pub enum Detail {
 impl Detail {
     pub fn produce(&self, weather: &Weather) -> String {
         match self {
-            Self::Minimal => MinimalTemplate { weather }.render_once().expect("minimal template render failed"),
-            Self::Full => FullTemplate { weather }.render_once().expect("full template render failed"),
+            Self::Minimal => MinimalTemplate { weather }
+                .render_once()
+                .expect("minimal template render failed"),
+            Self::Full => FullTemplate { weather }
+                .render_once()
+                .expect("full template render failed"),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("the weather request failed")]
     Request,
+    #[error("resolving the location failed")]
     Geo,
+    #[error("the location was not found")]
     NotFound,
 }
 
@@ -70,7 +77,7 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(from = "u8")]
 pub enum WeatherCode {
     Unclear,
@@ -89,7 +96,7 @@ pub enum WeatherCode {
 }
 
 impl WeatherCode {
-    pub fn svg(&self) -> &'static str {
+    pub const fn svg(&self) -> &'static str {
         match self {
             Self::Unclear => iconify::svg!("wi:stars", width = "96px"),
             Self::Clear => iconify::svg!("wi:day-sunny", width = "96px"),
@@ -179,6 +186,7 @@ mod utc_offset {
     }
 }
 
+#[derive(Debug)]
 pub struct Temperature(f64);
 
 impl Display for Temperature {
@@ -193,6 +201,7 @@ impl From<f64> for Temperature {
     }
 }
 
+#[derive(Debug)]
 pub struct TemperatureRange(Temperature, Temperature);
 
 impl TemperatureRange {
@@ -209,6 +218,7 @@ impl TemperatureRange {
     }
 }
 
+#[derive(Debug)]
 pub struct Humidity(u8);
 
 impl Display for Humidity {
@@ -252,7 +262,7 @@ impl From<u16> for WindDirection {
 }
 
 impl WindDirection {
-    pub fn svg(&self) -> &'static str {
+    pub const fn svg(&self) -> &'static str {
         match self {
             Self::NorthWest => iconify::svg!("wi:direction-up-left", width = "24px"),
             Self::North => iconify::svg!("wi:direction-up", width = "24px"),
@@ -266,6 +276,7 @@ impl WindDirection {
     }
 }
 
+#[derive(Debug)]
 pub struct CurrentForecast {
     pub time: DateTime<FixedOffset>,
     pub temperature: Temperature,
@@ -274,6 +285,7 @@ pub struct CurrentForecast {
     pub weather_code: WeatherCode,
 }
 
+#[derive(Debug)]
 pub struct DailyForecast {
     pub date: NaiveDate,
     pub temperatures: TemperatureRange,
@@ -285,20 +297,16 @@ pub struct DailyForecast {
     pub wind_dir: WindDirection,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(try_from = "intermediate::Weather")]
 pub struct Weather {
     pub current: CurrentForecast,
     pub daily: Vec<DailyForecast>,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("failed to convert into target struct")]
 pub struct ConvertError;
-
-impl Display for ConvertError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "failed to convert into target struct")
-    }
-}
 
 impl TryFrom<intermediate::Weather> for Weather {
     type Error = ConvertError;
@@ -310,7 +318,7 @@ impl TryFrom<intermediate::Weather> for Weather {
                 time: current
                     .time
                     .into_inner()
-                    .and_local_timezone(weather.ufc_offset)
+                    .and_local_timezone(weather.utc_offset)
                     .latest()
                     .ok_or(ConvertError)?,
                 temperature: current.temperature.into(),
@@ -349,8 +357,6 @@ impl TryFrom<intermediate::Weather> for Weather {
 }
 
 mod intermediate {
-
-
     use chrono::{FixedOffset, NaiveDate, NaiveDateTime};
 
     use super::{WeatherCode, WindDirection};
@@ -364,8 +370,6 @@ mod intermediate {
             self.0
         }
     }
-
-
 
     #[derive(serde::Deserialize)]
     pub struct CurrentForecast {
@@ -401,7 +405,7 @@ mod intermediate {
     #[derive(serde::Deserialize)]
     pub struct Weather {
         #[serde(rename = "utc_offset_seconds", with = "super::utc_offset")]
-        pub ufc_offset: FixedOffset,
+        pub utc_offset: FixedOffset,
         pub current: CurrentForecast,
         pub daily: DailyForecast,
     }
@@ -419,8 +423,8 @@ impl Client {
         let coords = geolocation::resolve(location).await?;
         url.query_pairs_mut()
             .clear()
-            .append_pair("longitude", &format!("{:.2}", coords.0))
-            .append_pair("latitude", &format!("{:.2}", coords.1));
+            .append_pair("longitude", &format!("{:.2}", coords.longitude))
+            .append_pair("latitude", &format!("{:.2}", coords.latitude));
         Ok(Self { url, detail })
     }
 
@@ -465,7 +469,10 @@ mod tests {
         assert!(matches!(WeatherCode::from(45), WeatherCode::Fog));
         assert!(matches!(WeatherCode::from(48), WeatherCode::Fog));
         assert!(matches!(WeatherCode::from(51), WeatherCode::DrizzleLight));
-        assert!(matches!(WeatherCode::from(53), WeatherCode::DrizzleModerate));
+        assert!(matches!(
+            WeatherCode::from(53),
+            WeatherCode::DrizzleModerate
+        ));
         assert!(matches!(WeatherCode::from(55), WeatherCode::DrizzleDense));
         assert!(matches!(WeatherCode::from(61), WeatherCode::RainSlight));
         assert!(matches!(WeatherCode::from(63), WeatherCode::RainModerate));
@@ -544,12 +551,18 @@ mod tests {
         let weather: Weather = serde_json::from_str(json).expect("Valid test JSON");
         assert_eq!(format!("{}", weather.current.temperature), "15.5");
         assert_eq!(weather.daily.len(), 2);
-        assert!(matches!(weather.daily[0].weather_code, WeatherCode::MostlyClear));
+        assert!(matches!(
+            weather.daily[0].weather_code,
+            WeatherCode::MostlyClear
+        ));
     }
 
     #[test]
     fn convert_error_display() {
-        assert_eq!(format!("{ConvertError}"), "failed to convert into target struct");
+        assert_eq!(
+            format!("{ConvertError}"),
+            "failed to convert into target struct"
+        );
     }
 }
 
@@ -578,13 +591,33 @@ mod geolocation {
         features: Vec<Feature>,
     }
 
+    #[derive(Debug, Clone, Copy)]
+    pub struct Coordinates {
+        pub longitude: f64,
+        pub latitude: f64,
+    }
+
+    impl From<[f64; 2]> for Coordinates {
+        // GeoJSON positions are ordered [longitude, latitude] (RFC 7946).
+        fn from([longitude, latitude]: [f64; 2]) -> Self {
+            Self {
+                longitude,
+                latitude,
+            }
+        }
+    }
+
+    #[derive(Debug, thiserror::Error)]
     pub enum Error {
+        #[error("the geolocation request failed")]
         Request,
+        #[error("the geolocation response could not be decoded")]
         Geo,
+        #[error("no matching location was found")]
         NotFound,
     }
 
-    pub async fn resolve(location: impl AsRef<str>) -> Result<(f64, f64), Error> {
+    pub async fn resolve(location: impl AsRef<str>) -> Result<Coordinates, Error> {
         let mut search = Url::parse("https://nominatim.openstreetmap.org/search")
             .expect("Hardcoded Nominatim URL is always valid");
         search

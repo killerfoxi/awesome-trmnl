@@ -8,6 +8,7 @@ use url::Url;
 
 use crate::{error::Canonical, resource::Resource, storage};
 
+#[derive(Debug)]
 pub struct Info {
     pub id: String,
     pub content_url: Url,

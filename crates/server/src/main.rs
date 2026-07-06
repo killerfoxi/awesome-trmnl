@@ -1,6 +1,5 @@
 #![warn(tail_expr_drop_order, clippy::nursery)]
 #![deny(clippy::pedantic)]
-#![allow(clippy::too_many_lines, reason = "CLI setup and server bootstrap are inherently long")]
 
 use std::{
     net::{Ipv6Addr, SocketAddr},
@@ -10,7 +9,7 @@ use std::{
 
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
-use eyre::eyre;
+use eyre::{WrapErr, eyre};
 use log::info;
 
 mod device;
@@ -82,14 +81,14 @@ async fn main() -> color_eyre::Result<()> {
     } else {
         rustls::crypto::aws_lc_rs::default_provider()
             .install_default()
-            .expect("Failed to install rustls crypto provider");
+            .map_err(|_| eyre!("A rustls crypto provider was already installed"))?;
+        let (cert, key) = args.tls.cert_file.zip(args.tls.key_file).ok_or_else(|| {
+            eyre!("--cert_file and --key_file are required unless --nouse_tls is set")
+        })?;
         Some(
-            args.tls
-                .cert_file
-                .zip(args.tls.key_file)
-                .map(|(cert, key)| RustlsConfig::from_pem_file(cert, key))
-                .expect("Cert and key provided")
-                .await?,
+            RustlsConfig::from_pem_file(cert, key)
+                .await
+                .wrap_err("Failed to load TLS certificate and key")?,
         )
     };
 
@@ -97,13 +96,12 @@ async fn main() -> color_eyre::Result<()> {
         renderer: Arc::new(
             blender::Instance::new(args.user_dir)
                 .await
-                .map_err(|e| eyre!("Failed to initialize browser renderer: {e}"))?
-                ,
+                .wrap_err("Failed to initialize browser renderer")?,
         ),
         storage: Arc::new(
             storage::Storage::load(args.devices_file)
                 .await
-                .map_err(|e| eyre!("While trying to load local device file: {e}"))?,
+                .wrap_err("While trying to load local device file")?,
         ),
     };
 
