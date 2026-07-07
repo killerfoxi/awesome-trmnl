@@ -30,7 +30,7 @@ use chromiumoxide::{
 };
 use futures::stream::StreamExt;
 use image::load_from_memory_with_format;
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use thiserror::Error;
 use tokio::{sync::RwLock, task::JoinHandle};
 
@@ -333,7 +333,7 @@ async fn render_in_context(
         &element.screenshot(CaptureScreenshotFormat::Png).await?,
         image::ImageFormat::Png,
     )?;
-    debug!("Rendered {}x{} image for {url}", img.width(), img.height());
+    info!("Rendered {}x{} image for {url}", img.width(), img.height());
     Ok(RenderedImage::from(img))
 }
 
