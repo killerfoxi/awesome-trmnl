@@ -22,4 +22,10 @@
     echo "Alpine/musl binary built at: target/x86_64-unknown-linux-musl/release/atrmnl_server"
   '';
 
+  tasks."atrmnl:build:alpine:native".exec = ''
+    RUSTFLAGS="-C target-cpu=native" \
+    cargo build --release --target x86_64-unknown-linux-musl --bin atrmnl_server
+    echo "Alpine/musl binary built at: target/x86_64-unknown-linux-musl/release/atrmnl_server"
+  '';
+
 }
