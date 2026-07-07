@@ -167,9 +167,10 @@ impl BrowserState {
             .arg("--font-render-hinting=none")
             .arg("--disable-lcd-text")
             .arg("--disable-font-subpixel-positioning")
-            .arg("--use-gl=angle")
-            .arg("--use-angle=swiftshader")
-            .arg("--enable-unsafe-swiftshader")
+            // Do not force a GL backend (ANGLE/SwiftShader): headless builds
+            // without Vulkan surface support then lose the GPU process three
+            // times and Chromium aborts entirely. `--disable-gpu` already
+            // yields pure CPU rasterization.
             .arg("--allow-insecure-localhost")
             .arg("--ignore-certificate-errors")
             .arg("--test-type")
