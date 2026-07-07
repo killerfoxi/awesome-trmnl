@@ -69,6 +69,7 @@ async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     pretty_env_logger::formatted_builder()
         .filter_module("atrmnl_server", log::LevelFilter::Info)
+        .filter_module("blender", log::LevelFilter::Info)
         .filter_module("chromiumoxide", log::LevelFilter::Off)
         .parse_env("RUST_LOG")
         .init();

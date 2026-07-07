@@ -8,6 +8,10 @@
 use std::{
     io::{Seek, Write},
     path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -112,18 +116,47 @@ impl From<image::DynamicImage> for RenderedImage {
 /// Upper bound for a whole render (navigation, settling, screenshot). Also
 /// the backstop that frees the request if the browser stops responding.
 const RENDER_TIMEOUT: Duration = Duration::from_secs(30);
+/// Extra budget for creating and disposing the browser context around the
+/// render, so a hung connection cannot stall a request indefinitely.
+const CONTEXT_OVERHEAD: Duration = Duration::from_secs(5);
 const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
 /// Grace period after the load event for scripts that draw asynchronously
 /// (e.g. charts) before the screenshot is taken.
 const SETTLE_DELAY: Duration = Duration::from_millis(200);
 
+/// A profile directory unique to this launch. Chromiumoxide would otherwise
+/// default to the fixed `$TMPDIR/chromiumoxide-runner`, which every instance
+/// on the machine shares — a leftover Chrome from a previous run then fights
+/// the new one over the profile lock and can take it down.
+fn scratch_profile_dir() -> PathBuf {
+    static LAUNCH: AtomicU64 = AtomicU64::new(0);
+    std::env::temp_dir().join(format!(
+        "atrmnl-blender-{}-{}",
+        std::process::id(),
+        LAUNCH.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
 struct BrowserState {
     browser: Browser,
     event_task: JoinHandle<()>,
+    /// Cleared by the event task as soon as the CDP connection reports an
+    /// error, so renders can relaunch eagerly instead of timing out first.
+    connection_alive: Arc<AtomicBool>,
+    /// Profile directory owned (and cleaned up) by us; `None` when the user
+    /// supplied their own directory.
+    scratch_dir: Option<PathBuf>,
 }
 
 impl BrowserState {
     async fn launch(user_dir: Option<PathBuf>) -> Result<Self, Error> {
+        let (data_dir, scratch_dir) = user_dir.map_or_else(
+            || {
+                let dir = scratch_profile_dir();
+                (dir.clone(), Some(dir))
+            },
+            |dir| (dir, None),
+        );
         let mut config = BrowserConfig::builder()
             .new_headless_mode()
             .window_size(800, 480)
@@ -145,13 +178,20 @@ impl BrowserState {
             .arg("--hide-scrollbars")
             .build()
             .map_err(Error::Setup)?;
-        config.user_data_dir = user_dir;
+        config.user_data_dir = Some(data_dir);
         let (browser, mut handler) = Browser::launch(config).await?;
 
+        let connection_alive = Arc::new(AtomicBool::new(true));
+        let alive = Arc::clone(&connection_alive);
         let event_task = tokio::task::spawn(async move {
-            while let Some(e) = handler.next().await {
-                debug!("Got event: {e:?}");
+            while let Some(event) = handler.next().await {
+                if let Err(e) = event {
+                    warn!("Browser connection error: {e}");
+                    alive.store(false, Ordering::Release);
+                }
             }
+            warn!("Browser connection closed");
+            alive.store(false, Ordering::Release);
         });
         browser
             .execute(SetIgnoreCertificateErrorsParams::new(true))
@@ -161,13 +201,20 @@ impl BrowserState {
         Ok(Self {
             browser,
             event_task,
+            connection_alive,
+            scratch_dir,
         })
     }
 
+    fn is_alive(&self) -> bool {
+        self.connection_alive.load(Ordering::Acquire)
+    }
+
     async fn is_responsive(&self) -> bool {
-        tokio::time::timeout(HEALTH_CHECK_TIMEOUT, self.browser.version())
-            .await
-            .is_ok_and(|version| version.is_ok())
+        self.is_alive()
+            && tokio::time::timeout(HEALTH_CHECK_TIMEOUT, self.browser.version())
+                .await
+                .is_ok_and(|version| version.is_ok())
     }
 
     async fn shutdown(&mut self) {
@@ -175,6 +222,11 @@ impl BrowserState {
             warn!("Failed to kill browser process: {e}");
         }
         self.event_task.abort();
+        if let Some(dir) = self.scratch_dir.take()
+            && let Err(e) = tokio::fs::remove_dir_all(&dir).await
+        {
+            debug!("Could not remove scratch profile {}: {e}", dir.display());
+        }
     }
 }
 
@@ -192,6 +244,10 @@ impl Instance {
     }
 
     pub async fn render(&self, url: &str) -> Result<RenderedImage, Error> {
+        if !self.state.read().await.is_alive() {
+            warn!("Browser connection is down; relaunching before rendering");
+            self.relaunch().await?;
+        }
         match self.try_render(url).await {
             Err(err) if !self.is_responsive().await => {
                 warn!("Browser is unresponsive after a failed render ({err}); relaunching");
@@ -224,20 +280,28 @@ impl Instance {
 
     async fn try_render(&self, url: &str) -> Result<RenderedImage, Error> {
         let state = self.state.read().await;
-        let context = state
-            .browser
-            .create_browser_context(CreateBrowserContextParams::default())
-            .await?;
-        let result = tokio::time::timeout(
-            RENDER_TIMEOUT,
-            render_in_context(&state.browser, &context, url),
-        )
+        // The outer timeout also covers context creation and disposal: on a
+        // dead connection those commands hang until chromiumoxide evicts
+        // them, and nothing may block a request indefinitely.
+        let result = tokio::time::timeout(RENDER_TIMEOUT + CONTEXT_OVERHEAD, async {
+            let context = state
+                .browser
+                .create_browser_context(CreateBrowserContextParams::default())
+                .await?;
+            let render = tokio::time::timeout(
+                RENDER_TIMEOUT,
+                render_in_context(&state.browser, &context, url),
+            )
+            .await;
+            // Dispose unconditionally: a leaked context keeps its page alive
+            // in the browser forever, degrading it a little more with every
+            // failure.
+            if let Err(e) = state.browser.dispose_browser_context(context).await {
+                warn!("Failed to dispose browser context: {e}");
+            }
+            render.map_err(|_| Error::Timeout)?
+        })
         .await;
-        // Dispose unconditionally: a leaked context keeps its page alive in
-        // the browser forever, degrading it a little more with every failure.
-        if let Err(e) = state.browser.dispose_browser_context(context).await {
-            warn!("Failed to dispose browser context: {e}");
-        }
         drop(state);
         result.map_err(|_| Error::Timeout)?
     }
@@ -318,6 +382,11 @@ mod tests {
         let cdp_err = CdpError::from(std::io::Error::other("fail"));
         let err: Error = cdp_err.into();
         assert!(matches!(err, Error::InternalRender(_)));
+    }
+
+    #[test]
+    fn scratch_profile_dirs_are_unique() {
+        assert_ne!(scratch_profile_dir(), scratch_profile_dir());
     }
 
     #[test]
