@@ -207,8 +207,7 @@ mod ondisk {
     }
 
     pub async fn load_local(path: Option<PathBuf>) -> Result<HashMap<String, Device>, Error> {
-        let path = path
-            .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/devices.toml")));
+        let path = path.unwrap_or_else(|| PathBuf::from("devices.toml"));
         let cfg = fs::read_to_string(&path).map_err(|source| Error::Read { path, source })?;
         let toml: HashMap<String, DeviceConfig> =
             toml::from_str(&cfg).inspect_err(|e| error!("{e}"))?;

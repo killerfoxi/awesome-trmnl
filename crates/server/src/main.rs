@@ -93,15 +93,15 @@ async fn main() -> color_eyre::Result<()> {
     };
 
     let state = serve::ServerState {
-        renderer: Arc::new(
-            blender::Instance::new(args.user_dir)
-                .await
-                .wrap_err("Failed to initialize browser renderer")?,
-        ),
         storage: Arc::new(
             storage::Storage::load(args.devices_file)
                 .await
                 .wrap_err("While trying to load local device file")?,
+        ),
+        renderer: Arc::new(
+            blender::Instance::new(args.user_dir)
+                .await
+                .wrap_err("Failed to initialize browser renderer")?,
         ),
     };
 
